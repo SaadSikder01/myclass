@@ -388,6 +388,221 @@
   </div>
 </div>
 
+
+
+
+
+
+
+
+
+
+
+  <style>
+    /* চ্যাটবট স্টাইল */
+    #ai-chat-wrapper {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* চ্যাট আইকন (Floating Button) */
+    #chat-toggle-btn {
+        width: 60px;
+        height: 60px;
+        background-color: #1a73e8;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        transition: transform 0.3s ease;
+        font-size: 24px;
+    }
+
+    #chat-toggle-btn:hover { transform: scale(1.1); }
+
+    /* চ্যাট উইন্ডো */
+    #chat-container {
+        position: absolute;
+        bottom: 80px;
+        right: 0;
+        width: 350px;
+        height: 500px;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        display: none; /* শুরুতে লুকানো থাকবে */
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid #ddd;
+    }
+
+    #chat-header {
+        background: #1a73e8;
+        color: white;
+        padding: 15px;
+        text-align: center;
+        font-weight: bold;
+        font-size: 16px;
+    }
+
+    #chat-box {
+        flex: 1;
+        padding: 15px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        background: #f9f9f9;
+    }
+
+    .msg {
+        max-width: 85%;
+        padding: 10px;
+        border-radius: 10px;
+        font-size: 14px;
+        line-height: 1.4;
+    }
+
+    .user { align-self: flex-end; background: #1a73e8; color: white; }
+    .ai { align-self: flex-start; background: #e8eaed; color: #202124; }
+
+    #input-area {
+        display: flex;
+        padding: 10px;
+        border-top: 1px solid #eee;
+        background: white;
+    }
+
+    #user-input {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        outline: none;
+    }
+
+    #send-btn {
+        background: #1a73e8;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        margin-left: 5px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    .loading-text { font-style: italic; color: #777; font-size: 12px; }
+</style>
+
+<div id="ai-chat-wrapper">
+    <div id="chat-container">
+        <div id="chat-header">বই পড়ার এআই সহকারী</div>
+        <div id="chat-box">
+            <div class="msg ai">স্বাগতম! আমি আপনার পড়ার সাথী। আপনার প্রশ্নটি এখানে লিখুন।</div>
+        </div>
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="প্রশ্ন লিখুন...">
+            <button id="send-btn" onclick="askAI()">পাঠান</button>
+        </div>
+    </div>
+
+    <div id="chat-toggle-btn" onclick="toggleChat()">
+        💬
+    </div>
+</div>
+
+<script>
+    // আপনার API Key এখানে বসান
+    const API_KEY = "AIzaSyCT_Z2mWsDxv1pQjQ1dxt773nAtZ05RBl0"; 
+    const MODEL_NAME = "gemini-2.5-flash"; 
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
+
+    // চ্যাট ওপেন বা ক্লোজ করার ফাংশন
+    function toggleChat() {
+        const chatWin = document.getElementById('chat-container');
+        if (chatWin.style.display === 'none' || chatWin.style.display === '') {
+            chatWin.style.display = 'flex';
+        } else {
+            chatWin.style.display = 'none';
+        }
+    }
+
+    async function askAI() {
+        const inputField = document.getElementById('user-input');
+        const chatBox = document.getElementById('chat-box');
+        const userText = inputField.value.trim();
+
+        if (!userText) return;
+
+        appendMsg(userText, 'user');
+        inputField.value = '';
+
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'msg ai loading-text';
+        loadingDiv.innerText = 'এআই উত্তর খুঁজছে...';
+        chatBox.appendChild(loadingDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: `তুমি একজন দক্ষ শিক্ষক। শিক্ষার্থীদের জন্য এই প্রশ্নটির সহজ বাংলায় ব্যাখ্যা দাও: ${userText}` }] }]
+                })
+            });
+
+            const data = await response.json();
+            chatBox.removeChild(loadingDiv);
+
+            if (data.candidates && data.candidates[0].content.parts[0].text) {
+                const aiResponse = data.candidates[0].content.parts[0].text;
+                appendMsg(aiResponse, 'ai');
+            } else {
+                appendMsg("দুঃখিত, কোনো উত্তর পাওয়া যায়নি।", 'ai');
+            }
+        } catch (error) {
+            if (chatBox.contains(loadingDiv)) chatBox.removeChild(loadingDiv);
+            appendMsg("সার্ভারে সমস্যা হচ্ছে।", 'ai');
+        }
+    }
+
+    function appendMsg(text, type) {
+        const chatBox = document.getElementById('chat-box');
+        const div = document.createElement('div');
+        div.className = `msg ${type}`;
+        div.innerText = text;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    document.getElementById('user-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') askAI();
+    });
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
 <script>
   // ---------- সমস্ত শ্রেণীর ডাটা ----------
   const classData = [
