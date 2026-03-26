@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ক্লাস থ্রি - আমার বই (ফিক্সড)</title>
+    <title>ক্লাস থ্রি - আমার বই (অনলাইন ভার্সন)</title>
     <style>
         * {
             margin: 0;
@@ -12,7 +12,7 @@
         }
 
         body {
-            font-family: 'Segoe UI', 'Hind Siliguri', 'Noto Sans Bengali', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', 'Hind Siliguri', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
@@ -57,60 +57,14 @@
             backdrop-filter: blur(10px);
         }
 
-        .storage-info {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            padding: 20px 30px;
+        .info-banner {
+            background: linear-gradient(135deg, #FFE5B4, #FFD700);
+            padding: 15px;
             margin: 20px;
-            border-radius: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .storage-stats {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-
-        .storage-card {
-            background: white;
-            padding: 12px 24px;
             border-radius: 15px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .storage-card span:first-child {
-            font-size: 28px;
-        }
-
-        .storage-card .value {
-            font-size: 24px;
+            text-align: center;
+            color: #333;
             font-weight: bold;
-            background: linear-gradient(135deg, #FF8C42, #FF6B6B);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .clear-storage {
-            background: linear-gradient(135deg, #FF6B6B, #FF8C42);
-            color: white;
-            border: none;
-            padding: 12px 28px;
-            border-radius: 12px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s ease;
-        }
-
-        .clear-storage:hover {
-            transform: translateY(-2px);
         }
 
         .category-section {
@@ -130,7 +84,7 @@
 
         .book-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 25px;
             margin-bottom: 30px;
         }
@@ -143,6 +97,7 @@
             transition: all 0.3s ease;
             border: 1px solid rgba(0,0,0,0.05);
             position: relative;
+            cursor: pointer;
         }
 
         .book-card::before {
@@ -153,6 +108,7 @@
             right: 0;
             height: 5px;
             background: linear-gradient(90deg, #FF8C42, #FF6B6B, #4ECDC4);
+            border-radius: 20px 20px 0 0;
         }
 
         .book-card:hover {
@@ -178,91 +134,30 @@
             text-align: center;
             color: #FF8C42;
             font-weight: 600;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             font-size: 14px;
         }
 
-        .download-status {
-            display: inline-block;
+        .btn-read {
             width: 100%;
-            text-align: center;
-            padding: 6px;
-            border-radius: 10px;
-            font-size: 12px;
-            margin-bottom: 18px;
-            font-weight: 500;
-        }
-
-        .status-downloaded {
-            background: linear-gradient(135deg, #d4edda, #c3e6cb);
-            color: #155724;
-        }
-
-        .status-not-downloaded {
-            background: linear-gradient(135deg, #f8d7da, #f5c6cb);
-            color: #721c24;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 12px 16px;
+            padding: 14px;
+            background: linear-gradient(135deg, #4ECDC4, #44b3a8);
+            color: white;
             border: none;
             border-radius: 12px;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 10px;
         }
 
-        .btn-online {
-            background: linear-gradient(135deg, #4ECDC4, #44b3a8);
-            color: white;
-        }
-
-        .btn-offline {
-            background: linear-gradient(135deg, #FF8C42, #FF6B6B);
-            color: white;
-        }
-
-        .btn-offline:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-
-        .progress-container {
-            margin-top: 15px;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #e0e0e0;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4ECDC4, #FF8C42);
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-
-        .progress-text {
-            font-size: 11px;
-            color: #666;
-            margin-top: 6px;
-            text-align: center;
+        .btn-read:hover {
+            transform: scale(0.98);
+            box-shadow: 0 4px 12px rgba(78,205,196,0.4);
         }
 
         .modal {
@@ -305,6 +200,12 @@
             border-radius: 50%;
             font-size: 20px;
             cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .close-modal:hover {
+            background: rgba(255,255,255,0.3);
+            transform: rotate(90deg);
         }
 
         .pdf-viewer {
@@ -320,30 +221,9 @@
             text-align: center;
         }
 
-        .toast {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.85);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 50px;
-            font-size: 14px;
-            z-index: 3000;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateX(-50%) translateY(20px); }
-            to { opacity: 1; transform: translateX(-50%) translateY(0); }
-        }
-
         @media (max-width: 768px) {
             .header h1 { font-size: 32px; }
             .book-grid { grid-template-columns: 1fr; }
-            .storage-info { flex-direction: column; }
-            .storage-stats { justify-content: center; }
         }
     </style>
 </head>
@@ -352,27 +232,11 @@
         <div class="header">
             <h1>📖 তৃতীয় শ্রেণি</h1>
             <div class="class-badge">🎓 Class Three - ৩য় শ্রেণি</div>
-            <p>📚 সব বই একসাথে | অনলাইনে পড়ুন | অফলাইনে ডাউনলোড করে পড়ুন</p>
+            <p>📚 সব বই অনলাইনে পড়ুন | ইন্টারনেট সংযোগ প্রয়োজন</p>
         </div>
 
-        <div class="storage-info">
-            <div class="storage-stats">
-                <div class="storage-card">
-                    <span>💾</span>
-                    <div>
-                        <div style="font-size:12px; color:#666;">ডাউনলোড করা বই</div>
-                        <div class="value" id="downloadedCount">০</div>
-                    </div>
-                </div>
-                <div class="storage-card">
-                    <span>📚</span>
-                    <div>
-                        <div style="font-size:12px; color:#666;">মোট বই</div>
-                        <div class="value" id="totalBooks">৯</div>
-                    </div>
-                </div>
-            </div>
-            <button class="clear-storage" onclick="clearAllDownloads()">🗑️ সব ডাউনলোড মুছুন</button>
+        <div class="info-banner">
+            💡 টিপ: বইয়ের কার্ডে ক্লিক করুন বা "পড়ুন" বাটনে চাপ দিন। গুগল ড্রাইভ ভিউয়ারে বই পড়তে পারবেন।
         </div>
 
         <div class="category-section">
@@ -386,10 +250,12 @@
         </div>
 
         <div class="footer">
-            <p>✨ পড়ার আনন্দে মগ্ন থাকুন | একবার ডাউনলোড করলেই অফলাইনে পড়া যাবে ✨</p>
+            <p>✨ পড়ার আনন্দে মগ্ন থাকুন | সকল বই গুগল ড্রাইভে সংরক্ষিত ✨</p>
+            <p style="font-size: 12px; margin-top: 10px;">📖 ইন্টারনেট সংযোগ প্রয়োজন | 🎓 তৃতীয় শ্রেণির শিক্ষার্থীদের জন্য</p>
         </div>
     </div>
 
+    <!-- PDF Viewer Modal -->
     <div id="pdfModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -401,247 +267,26 @@
     </div>
 
     <script>
-        // তৃতীয় শ্রেণির সব বই - সঠিক ফাইল আইডি সহ
+        // তৃতীয় শ্রেণির সব বই - গুগল ড্রাইভ এম্বেড লিংক সহ
         const books = [
-            { id: 1, name: "বাংলা বই", subject: "বাংলা", category: "main", icon: "📖", fileId: "1pSpOMkKL3A-N5-WYwPdaA7mnY13163CX" },
-            { id: 2, name: "ইংরেজি বই", subject: "English", category: "main", icon: "🇬🇧", fileId: "1acb3hiHT-HuAgwyjgxT2YkBxhojTLLUI" },
-            { id: 3, name: "প্রাথমিক গণিত", subject: "Mathematics", category: "main", icon: "🧮", fileId: "1GzSxo4c7ghSzdi2Q8eqh01kR_duFK9vw" },
-            { id: 4, name: "প্রাথমিক বিজ্ঞান", subject: "Science", category: "main", icon: "🔬", fileId: "1263hjxNdwr_Mgy3whAb_ojKP056PBorh" },
-            { id: 5, name: "বাংলাদেশ ও বিশ্বপরিচয়", subject: "Bd & Global Studies", category: "main", icon: "🌍", fileId: "148AKdjr3Hr_fSrp0i1eFpmGAO9fRN_52" },
-            { id: 6, name: "ইসলাম শিক্ষা", subject: "Islam", category: "religious", icon: "🕌", fileId: "1n6lPbZi6tsK94q6B_OGvpMzQIAsR-Kvq" },
-            { id: 7, name: "হিন্দুধর্ম শিক্ষা", subject: "Hinduism", category: "religious", icon: "🕉️", fileId: "1tLPaA5PqLXamGohfxEOKYkd0g1pnieau" },
-            { id: 8, name: "বৌদ্ধধর্ম শিক্ষা", subject: "Buddhism", category: "religious", icon: "☸️", fileId: "1AMsEOaDLK7thVa5QtOfjTqSH14eJ9gd7" },
-            { id: 9, name: "খ্রিষ্টধর্ম শিক্ষা", subject: "Christianity", category: "religious", icon: "⛪", fileId: "1gfIRJBVEilH7FiLpfPPip3Arz3-JMJZy" }
+            // মূল পাঠ্যবই
+            { id: 1, name: "বাংলা বই", subject: "বাংলা", category: "main", icon: "📖", fileId: "1pSpOMkKL3A-N5-WYwPdaA7mnY13163CX", embedUrl: "https://drive.google.com/file/d/1pSpOMkKL3A-N5-WYwPdaA7mnY13163CX/preview" },
+            { id: 2, name: "ইংরেজি বই", subject: "English", category: "main", icon: "🇬🇧", fileId: "1acb3hiHT-HuAgwyjgxT2YkBxhojTLLUI", embedUrl: "https://drive.google.com/file/d/1acb3hiHT-HuAgwyjgxT2YkBxhojTLLUI/preview" },
+            { id: 3, name: "প্রাথমিক গণিত", subject: "Mathematics", category: "main", icon: "🧮", fileId: "1GzSxo4c7ghSzdi2Q8eqh01kR_duFK9vw", embedUrl: "https://drive.google.com/file/d/1GzSxo4c7ghSzdi2Q8eqh01kR_duFK9vw/preview" },
+            { id: 4, name: "প্রাথমিক বিজ্ঞান", subject: "Science", category: "main", icon: "🔬", fileId: "1263hjxNdwr_Mgy3whAb_ojKP056PBorh", embedUrl: "https://drive.google.com/file/d/1263hjxNdwr_Mgy3whAb_ojKP056PBorh/preview" },
+            { id: 5, name: "বাংলাদেশ ও বিশ্বপরিচয়", subject: "Bd & Global Studies", category: "main", icon: "🌍", fileId: "148AKdjr3Hr_fSrp0i1eFpmGAO9fRN_52", embedUrl: "https://drive.google.com/file/d/148AKdjr3Hr_fSrp0i1eFpmGAO9fRN_52/preview" },
+            // ধর্মীয় শিক্ষা
+            { id: 6, name: "ইসলাম শিক্ষা", subject: "Islam", category: "religious", icon: "🕌", fileId: "1n6lPbZi6tsK94q6B_OGvpMzQIAsR-Kvq", embedUrl: "https://drive.google.com/file/d/1n6lPbZi6tsK94q6B_OGvpMzQIAsR-Kvq/preview" },
+            { id: 7, name: "হিন্দুধর্ম শিক্ষা", subject: "Hinduism", category: "religious", icon: "🕉️", fileId: "1tLPaA5PqLXamGohfxEOKYkd0g1pnieau", embedUrl: "https://drive.google.com/file/d/1tLPaA5PqLXamGohfxEOKYkd0g1pnieau/preview" },
+            { id: 8, name: "বৌদ্ধধর্ম শিক্ষা", subject: "Buddhism", category: "religious", icon: "☸️", fileId: "1AMsEOaDLK7thVa5QtOfjTqSH14eJ9gd7", embedUrl: "https://drive.google.com/file/d/1AMsEOaDLK7thVa5QtOfjTqSH14eJ9gd7/preview" },
+            { id: 9, name: "খ্রিষ্টধর্ম শিক্ষা", subject: "Christianity", category: "religious", icon: "⛪", fileId: "1gfIRJBVEilH7FiLpfPPip3Arz3-JMJZy", embedUrl: "https://drive.google.com/file/d/1gfIRJBVEilH7FiLpfPPip3Arz3-JMJZy/preview" }
         ];
 
-        const STORAGE_KEY = 'class3_downloaded_books';
-        let db = null;
-
-        // ডাটাবেস ওপেন করা
-        function openDatabase() {
-            return new Promise((resolve, reject) => {
-                if (db) {
-                    resolve(db);
-                    return;
-                }
-                const request = indexedDB.open('Class3BooksDB', 1);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => {
-                    db = request.result;
-                    resolve(db);
-                };
-                request.onupgradeneeded = (event) => {
-                    const db = event.target.result;
-                    if (!db.objectStoreNames.contains('pdfs')) {
-                        db.createObjectStore('pdfs', { keyPath: 'id' });
-                    }
-                };
-            });
-        }
-
-        // PDF সেভ করা
-        async function savePDFToStorage(bookId, pdfBlob) {
-            const database = await openDatabase();
-            return new Promise((resolve, reject) => {
-                const transaction = database.transaction(['pdfs'], 'readwrite');
-                const store = transaction.objectStore('pdfs');
-                const reader = new FileReader();
-                reader.onload = () => {
-                    store.put({ id: bookId, data: reader.result });
-                    resolve();
-                };
-                reader.onerror = () => reject(reader.error);
-                reader.readAsArrayBuffer(pdfBlob);
-            });
-        }
-
-        // PDF পাওয়া
-        async function getPDFFromStorage(bookId) {
-            const database = await openDatabase();
-            return new Promise((resolve, reject) => {
-                const transaction = database.transaction(['pdfs'], 'readonly');
-                const store = transaction.objectStore('pdfs');
-                const request = store.get(bookId);
-                request.onsuccess = () => resolve(request.result ? request.result.data : null);
-                request.onerror = () => reject(request.error);
-            });
-        }
-
-        // PDF ডিলিট করা
-        async function deletePDFFromStorage(bookId) {
-            const database = await openDatabase();
-            return new Promise((resolve, reject) => {
-                const transaction = database.transaction(['pdfs'], 'readwrite');
-                const store = transaction.objectStore('pdfs');
-                store.delete(bookId);
-                resolve();
-            });
-        }
-
-        // ডাউনলোড করা বইয়ের তালিকা
-        function getDownloadedBooks() {
-            const downloaded = localStorage.getItem(STORAGE_KEY);
-            return downloaded ? JSON.parse(downloaded) : [];
-        }
-
-        function saveDownloadedBook(bookId) {
-            const downloaded = getDownloadedBooks();
-            if (!downloaded.includes(bookId)) {
-                downloaded.push(bookId);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(downloaded));
-            }
-        }
-
-        function removeDownloadedBook(bookId) {
-            let downloaded = getDownloadedBooks();
-            downloaded = downloaded.filter(id => id !== bookId);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(downloaded));
-        }
-
-        async function clearAllDownloads() {
-            if (confirm('সব ডাউনলোড করা বই মুছে ফেলতে চান?')) {
-                for (const book of books) {
-                    await deletePDFFromStorage(book.id);
-                    removeDownloadedBook(book.id);
-                }
-                renderBooks();
-                updateStorageInfo();
-                showToast('✅ সব ডাউনলোড মুছে ফেলা হয়েছে!');
-            }
-        }
-
-        function updateStorageInfo() {
-            const downloaded = getDownloadedBooks();
-            document.getElementById('downloadedCount').innerText = downloaded.length;
-            document.getElementById('totalBooks').innerText = books.length;
-        }
-
-        function showToast(message) {
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.textContent = message;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        // গুগল ড্রাইভ থেকে PDF ডাউনলোড করার সঠিক পদ্ধতি
-        async function downloadPDFFromDrive(fileId, onProgress) {
-            // প্রথমে ডাউনলোড লিংক পেতে হবে
-            const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-            
-            try {
-                const response = await fetch(downloadUrl);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const contentLength = response.headers.get('content-length');
-                const total = contentLength ? parseInt(contentLength, 10) : 0;
-                let loaded = 0;
-                
-                const reader = response.body.getReader();
-                const chunks = [];
-                
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    
-                    chunks.push(value);
-                    loaded += value.length;
-                    
-                    if (total && onProgress) {
-                        onProgress((loaded / total) * 100);
-                    }
-                }
-                
-                const pdfBlob = new Blob(chunks, { type: 'application/pdf' });
-                return pdfBlob;
-                
-            } catch (error) {
-                console.error('Download error:', error);
-                throw error;
-            }
-        }
-
-        // অনলাইনে পড়া
-        function readOnline(fileId, bookName) {
-            const embedUrl = `https://drive.google.com/file/d/${fileId}/preview`;
-            document.getElementById('modalTitle').innerHTML = `${bookName} - অনলাইন মোড`;
+        // পড়ার ফাংশন
+        function readBook(bookName, embedUrl) {
+            document.getElementById('modalTitle').innerHTML = `${bookName}`;
             document.getElementById('pdfFrame').src = embedUrl;
             document.getElementById('pdfModal').style.display = 'block';
-        }
-
-        // অফলাইনে পড়া
-        async function readOffline(bookId, bookName) {
-            try {
-                const pdfData = await getPDFFromStorage(bookId);
-                if (pdfData) {
-                    const blob = new Blob([pdfData], { type: 'application/pdf' });
-                    const url = URL.createObjectURL(blob);
-                    document.getElementById('modalTitle').innerHTML = `${bookName} - অফলাইন মোড 📱`;
-                    document.getElementById('pdfFrame').src = url;
-                    document.getElementById('pdfModal').style.display = 'block';
-                    
-                    const modal = document.getElementById('pdfModal');
-                    const closeHandler = () => {
-                        URL.revokeObjectURL(url);
-                        modal.removeEventListener('close', closeHandler);
-                    };
-                    modal.addEventListener('close', closeHandler);
-                } else {
-                    showToast('❌ পিডিএফ ফাইল পাওয়া যায়নি! প্রথমে ডাউনলোড করুন।');
-                }
-            } catch (error) {
-                console.error('Offline read error:', error);
-                showToast('❌ অফলাইনে পড়া সম্ভব হচ্ছে না');
-            }
-        }
-
-        // ডাউনলোড করে পড়া
-        async function handleOfflineRead(bookId, fileId, bookName) {
-            const downloadedBooks = getDownloadedBooks();
-            const isDownloaded = downloadedBooks.includes(bookId);
-            
-            if (isDownloaded) {
-                await readOffline(bookId, bookName);
-            } else {
-                const progressDiv = document.getElementById(`progress-${bookId}`);
-                const progressFill = document.getElementById(`progressFill-${bookId}`);
-                const progressText = document.getElementById(`progressText-${bookId}`);
-                const offlineBtn = document.getElementById(`offlineBtn-${bookId}`);
-                
-                progressDiv.style.display = 'block';
-                offlineBtn.disabled = true;
-                offlineBtn.innerHTML = '⏳ ডাউনলোড হচ্ছে...';
-                
-                try {
-                    const pdfBlob = await downloadPDFFromDrive(fileId, (percent) => {
-                        progressFill.style.width = `${percent}%`;
-                        progressText.innerText = `ডাউনলোড: ${Math.round(percent)}%`;
-                    });
-                    
-                    await savePDFToStorage(bookId, pdfBlob);
-                    saveDownloadedBook(bookId);
-                    
-                    progressDiv.style.display = 'none';
-                    offlineBtn.disabled = false;
-                    offlineBtn.innerHTML = '📱 অফলাইনে পড়ুন';
-                    
-                    renderBooks();
-                    updateStorageInfo();
-                    
-                    showToast(`✅ "${bookName}" ডাউনলোড সম্পূর্ণ!`);
-                    await readOffline(bookId, bookName);
-                    
-                } catch (error) {
-                    console.error('Download error:', error);
-                    progressDiv.style.display = 'none';
-                    offlineBtn.disabled = false;
-                    offlineBtn.innerHTML = '📥 অফলাইনের জন্য ডাউনলোড';
-                    showToast('❌ ডাউনলোড ব্যর্থ হয়েছে। ইন্টারনেট সংযোগ চেক করুন এবং আবার চেষ্টা করুন।');
-                }
-            }
         }
 
         // বই রেন্ডার করা
@@ -654,58 +299,42 @@
         }
 
         function renderBookGrid(booksList) {
-            const downloadedBooks = getDownloadedBooks();
-            
-            return booksList.map(book => {
-                const isDownloaded = downloadedBooks.includes(book.id);
-                const statusClass = isDownloaded ? 'status-downloaded' : 'status-not-downloaded';
-                const statusText = isDownloaded ? '✓ ডাউনলোড হয়েছে' : '○ ডাউনলোড হয়নি';
-                
-                return `
-                    <div class="book-card">
-                        <div class="book-icon">${book.icon}</div>
-                        <div class="book-title">${book.name}</div>
-                        <div class="book-subject">${book.subject}</div>
-                        <div class="download-status ${statusClass}">${statusText}</div>
-                        <div class="button-group">
-                            <button class="btn btn-online" onclick="readOnline('${book.fileId}', '${book.name}')">
-                                🌐 অনলাইনে পড়ুন
-                            </button>
-                            <button class="btn btn-offline" id="offlineBtn-${book.id}" onclick="handleOfflineRead(${book.id}, '${book.fileId}', '${book.name}')">
-                                ${isDownloaded ? '📱 অফলাইনে পড়ুন' : '📥 অফলাইনের জন্য ডাউনলোড'}
-                            </button>
-                        </div>
-                        <div id="progress-${book.id}" style="display: none;">
-                            <div class="progress-container">
-                                <div class="progress-bar">
-                                    <div class="progress-fill" id="progressFill-${book.id}"></div>
-                                </div>
-                                <div class="progress-text" id="progressText-${book.id}">ডাউনলোড হচ্ছে...</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
+            return booksList.map(book => `
+                <div class="book-card" onclick="readBook('${book.name}', '${book.embedUrl}')">
+                    <div class="book-icon">${book.icon}</div>
+                    <div class="book-title">${book.name}</div>
+                    <div class="book-subject">${book.subject}</div>
+                    <button class="btn-read" onclick="event.stopPropagation(); readBook('${book.name}', '${book.embedUrl}')">
+                        📖 পড়ুন
+                    </button>
+                </div>
+            `).join('');
         }
 
+        // মডাল বন্ধ করা
         function closeModal() {
             document.getElementById('pdfModal').style.display = 'none';
             document.getElementById('pdfFrame').src = '';
         }
 
+        // মডালের বাইরে ক্লিক করলে বন্ধ
         window.onclick = (event) => {
             const modal = document.getElementById('pdfModal');
-            if (event.target === modal) closeModal();
-        };
-        
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // ESC কী প্রেসে বন্ধ
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') closeModal();
+            if (event.key === 'Escape') {
+                closeModal();
+            }
         });
 
         // পৃষ্ঠা লোড
         document.addEventListener('DOMContentLoaded', () => {
             renderBooks();
-            updateStorageInfo();
         });
     </script>
 </body>
