@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>প্রথম শ্রেণি - আমার বই</title>
     <style>
+        /* (CSS আগের মতোই) */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', 'Hind Siliguri', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
         .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 30px; box-shadow: 0 30px 60px rgba(0,0,0,0.3); overflow: hidden; }
@@ -176,54 +177,37 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
-        // ========== PDF ভিউয়ার (অনলাইনের জন্য iframe, অফলাইনের জন্য embed) ==========
-        function openPdfInModal(url, title, isOffline = false) {
+        // ========== PDF ভিউয়ার ==========
+        // অনলাইন: Google Docs viewer (iframe)
+        function openOnlinePdf(url, title) {
             const container = document.getElementById('pdfContainer');
-            const modalTitle = document.getElementById('modalTitle');
-            modalTitle.innerHTML = title;
-            
-            // পুরনো কন্টেন্ট ক্লিয়ার
             container.innerHTML = '';
-            
-            if (isOffline) {
-                // অফলাইন: embed ট্যাগ ব্যবহার (inline PDF দেখানোর চেষ্টা)
-                const embed = document.createElement('embed');
-                embed.src = url;
-                embed.type = 'application/pdf';
-                embed.style.width = '100%';
-                embed.style.height = '100%';
-                container.appendChild(embed);
-                
-                // Fallback: যদি embed কাজ না করে, মেসেজ দেখানো
-                setTimeout(() => {
-                    if (embed.clientHeight === 0) {
-                        container.innerHTML = '<div style="text-align:center; padding:40px; color:#666;">📄 PDF দেখা যাচ্ছে না। <a href="' + url + '" target="_blank">এখানে ক্লিক করে নতুন ট্যাবে পড়ুন</a></div>';
-                    }
-                }, 1000);
-            } else {
-                // অনলাইন: Google Docs viewer via iframe
-                const iframe = document.createElement('iframe');
-                iframe.src = url;
-                iframe.style.width = '100%';
-                iframe.style.height = '100%';
-                iframe.style.border = 'none';
-                container.appendChild(iframe);
-            }
-            
+            const iframe = document.createElement('iframe');
+            iframe.src = `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(url)}`;
+            iframe.style.width = '100%';
+            iframe.style.height = '100%';
+            iframe.style.border = 'none';
+            container.appendChild(iframe);
+            document.getElementById('modalTitle').innerHTML = title;
             document.getElementById('pdfModal').style.display = 'flex';
         }
 
+        // অফলাইন: নতুন ট্যাবে খুলবে (এটি নিশ্চিত করে PDF দেখাবে, ডাউনলোড ডায়ালগ আসবে না)
+        function openOfflinePdf(blobUrl, title) {
+            // নতুন ট্যাবে PDF খুলবে (মোবাইলে ইনবিল্ট ভিউয়ার চালু হবে)
+            window.open(blobUrl, '_blank');
+            showToast('📖 PDF নতুন ট্যাবে খুলছে...');
+        }
+
         function closeModal() {
-            const container = document.getElementById('pdfContainer');
-            container.innerHTML = '';
+            document.getElementById('pdfContainer').innerHTML = '';
             document.getElementById('pdfModal').style.display = 'none';
         }
 
         // ========== অনলাইনে পড়া ==========
         function readOnline(fileName, bookName) {
             const pdfUrl = getPdfUrl(fileName);
-            const viewerUrl = `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(pdfUrl)}`;
-            openPdfInModal(viewerUrl, `${bookName} - অনলাইন মোড 🌐`, false);
+            openOnlinePdf(pdfUrl, `${bookName} - অনলাইন মোড 🌐`);
         }
 
         // ========== অফলাইনে পড়া ==========
@@ -231,15 +215,10 @@
             try {
                 const blob = await getFromCache(cacheKey);
                 if (blob) {
-                    const url = URL.createObjectURL(blob);
-                    openPdfInModal(url, `${bookName} - অফলাইন মোড 📱`, true);
-                    // মডাল বন্ধ হলে URL রিলিজ
-                    const modal = document.getElementById('pdfModal');
-                    const closeHandler = () => {
-                        URL.revokeObjectURL(url);
-                        modal.removeEventListener('close', closeHandler);
-                    };
-                    modal.addEventListener('close', closeHandler);
+                    const blobUrl = URL.createObjectURL(blob);
+                    openOfflinePdf(blobUrl, `${bookName} - অফলাইন মোড 📱`);
+                    // blobUrl রিলিজ করতে কিছু সময় পর (যেহেতু নতুন ট্যাব খোলা হয়েছে, আমরা 5 সেকেন্ড পরে রিলিজ করি)
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
                 } else {
                     showToast('❌ পিডিএফ পাওয়া যায়নি! প্রথমে ডাউনলোড করুন।');
                 }
@@ -293,6 +272,7 @@
                 downloadBtn.innerHTML = '📱 অফলাইনে পড়ুন';
                 showToast(`✅ "${bookName}" ডাউনলোড সম্পূর্ণ!`);
                 
+                // ডাউনলোড শেষে অটো ওপেন
                 setTimeout(async () => {
                     await readOffline(bookId, cacheKey, bookName);
                 }, 500);
