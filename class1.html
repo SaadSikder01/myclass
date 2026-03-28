@@ -57,7 +57,7 @@
         <div class="header">
             <h1>📖 প্রথম শ্রেণি</h1>
             <div class="class-badge">🎓 Class One - ১ম শ্রেণি</div>
-            <div class="platform-badge">📱 অ্যাপ মোড | অফলাইন সাপোর্ট ✅</div>
+            <div class="platform-badge">📱 অ্যাপ | অফলাইন সাপোর্ট ✅</div>
             <p>📚 অনলাইনে পড়ুন | 📥 ডাউনলোড করে অ্যাপের ভিতরেই পড়ুন</p>
         </div>
 
@@ -76,7 +76,7 @@
 
         <div class="footer">
             <a href="https://saadsikder01.github.io/myclass/" class="back-home">🏠 হোম পেজে ফিরুন</a>
-            <p>✨ পড়ার আনন্দে মগ্ন থাকুন | একবার ডাউনলোড করলেই অ্যাপের ভিতরেই পড়া যাবে ✨</p>
+            <p>✨ পড়ার আনন্দে মগ্ন থাকুন | ডাউনলোড করে অ্যাপের ভিতরেই পড়ুন ✨</p>
         </div>
     </div>
 
@@ -102,9 +102,9 @@
             return `https://saadsikder01.github.io/myclass/${fileName}`;
         }
 
-        const STORAGE_KEY = 'class1_downloaded';
+        const STORAGE_KEY = 'class1_books';
 
-        // ========== localStorage (ডাউনলোড স্ট্যাটাস) ==========
+        // ========== localStorage (শুধু ডাউনলোড স্ট্যাটাস) ==========
         function getDownloadedBooks() {
             try {
                 const saved = localStorage.getItem(STORAGE_KEY);
@@ -112,11 +112,17 @@
             } catch { return []; }
         }
 
-        function saveDownloadedBook(bookId) {
+        function saveDownloadedBook(bookId, blobUrl) {
             let downloaded = getDownloadedBooks();
             if (!downloaded.includes(bookId)) {
                 downloaded.push(bookId);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(downloaded));
+                
+                // Blob URL সেভ করা (localStorage এ)
+                const urls = JSON.parse(localStorage.getItem('book_blob_urls') || '{}');
+                urls[bookId] = blobUrl;
+                localStorage.setItem('book_blob_urls', JSON.stringify(urls));
+                
                 updateUI();
             }
         }
@@ -125,7 +131,33 @@
             let downloaded = getDownloadedBooks();
             downloaded = downloaded.filter(id => id !== bookId);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(downloaded));
+            
+            // Blob URL মুছে ফেলা
+            const urls = JSON.parse(localStorage.getItem('book_blob_urls') || '{}');
+            if (urls[bookId]) {
+                URL.revokeObjectURL(urls[bookId]);
+                delete urls[bookId];
+                localStorage.setItem('book_blob_urls', JSON.stringify(urls));
+            }
+            
             updateUI();
+        }
+
+        function getBookBlobUrl(bookId) {
+            const urls = JSON.parse(localStorage.getItem('book_blob_urls') || '{}');
+            return urls[bookId] || null;
+        }
+
+        function clearAllDownloads() {
+            if (confirm('সব ডাউনলোড করা বই মুছে ফেলতে চান?')) {
+                const downloaded = getDownloadedBooks();
+                for (const id of downloaded) {
+                    removeDownloadedBook(id);
+                }
+                showToast('✅ সব ডাউনলোড মুছে ফেলা হয়েছে!');
+                renderBooks();
+                updateUI();
+            }
         }
 
         function updateUI() {
@@ -141,88 +173,6 @@
             toast.textContent = msg;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
-        }
-
-        // ========== IndexedDB (PDF ডাটা সেভ) ==========
-        function saveToIndexedDB(bookId, blob) {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open('Class1BooksDB', 1);
-                
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => {
-                    const db = request.result;
-                    const transaction = db.transaction(['pdfs'], 'readwrite');
-                    const store = transaction.objectStore('pdfs');
-                    
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        store.put({ id: bookId, data: reader.result });
-                        resolve();
-                    };
-                    reader.onerror = () => reject(reader.error);
-                    reader.readAsArrayBuffer(blob);
-                };
-                
-                request.onupgradeneeded = (event) => {
-                    const db = event.target.result;
-                    if (!db.objectStoreNames.contains('pdfs')) {
-                        db.createObjectStore('pdfs', { keyPath: 'id' });
-                    }
-                };
-            });
-        }
-
-        function getFromIndexedDB(bookId) {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open('Class1BooksDB', 1);
-                
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => {
-                    const db = request.result;
-                    const transaction = db.transaction(['pdfs'], 'readonly');
-                    const store = transaction.objectStore('pdfs');
-                    const getRequest = store.get(bookId);
-                    
-                    getRequest.onsuccess = () => {
-                        resolve(getRequest.result ? getRequest.result.data : null);
-                    };
-                    getRequest.onerror = () => reject(getRequest.error);
-                };
-                
-                request.onupgradeneeded = (event) => {
-                    const db = event.target.result;
-                    if (!db.objectStoreNames.contains('pdfs')) {
-                        db.createObjectStore('pdfs', { keyPath: 'id' });
-                    }
-                };
-            });
-        }
-
-        function deleteFromIndexedDB(bookId) {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open('Class1BooksDB', 1);
-                
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => {
-                    const db = request.result;
-                    const transaction = db.transaction(['pdfs'], 'readwrite');
-                    const store = transaction.objectStore('pdfs');
-                    store.delete(bookId);
-                    resolve();
-                };
-            });
-        }
-
-        async function clearAllDownloads() {
-            if (confirm('সব ডাউনলোড করা বই মুছে ফেলতে চান?')) {
-                const downloaded = getDownloadedBooks();
-                for (const id of downloaded) {
-                    await deleteFromIndexedDB(id);
-                    removeDownloadedBook(id);
-                }
-                showToast('✅ সব ডাউনলোড মুছে ফেলা হয়েছে!');
-                updateUI();
-            }
         }
 
         // ========== PDF ভিউয়ার ==========
@@ -243,39 +193,25 @@
         }
 
         // ========== অফলাইনে পড়া ==========
-        async function readOffline(bookId, bookName) {
-            try {
-                const data = await getFromIndexedDB(bookId);
-                if (data) {
-                    const blob = new Blob([data], { type: 'application/pdf' });
-                    const url = URL.createObjectURL(blob);
-                    openPdfInModal(url, `${bookName} - অফলাইন মোড 📱`);
-                    
-                    const modal = document.getElementById('pdfModal');
-                    const closeHandler = () => {
-                        URL.revokeObjectURL(url);
-                        modal.removeEventListener('close', closeHandler);
-                    };
-                    modal.addEventListener('close', closeHandler);
-                } else {
-                    showToast('❌ পিডিএফ পাওয়া যায়নি! প্রথমে ডাউনলোড করুন।');
-                }
-            } catch (error) {
-                console.error(error);
-                showToast('❌ অফলাইনে পড়া সম্ভব হচ্ছে না');
+        function readOffline(bookId, bookName) {
+            const blobUrl = getBookBlobUrl(bookId);
+            if (blobUrl) {
+                openPdfInModal(blobUrl, `${bookName} - অফলাইন মোড 📱`);
+            } else {
+                showToast('❌ পিডিএফ পাওয়া যায়নি! প্রথমে ডাউনলোড করুন।');
             }
         }
 
-        // ========== ডাউনলোড + অটো ওপেন ==========
-        async function downloadAndOpen(bookId, fileName, bookName) {
+        // ========== ডাউনলোড ফাংশন (Blob URL সেভ) ==========
+        async function downloadAndSave(bookId, fileName, bookName) {
             const progressDiv = document.getElementById(`progress-${bookId}`);
             const progressFill = document.getElementById(`progressFill-${bookId}`);
             const progressText = document.getElementById(`progressText-${bookId}`);
-            const offlineBtn = document.getElementById(`offlineBtn-${bookId}`);
+            const downloadBtn = document.getElementById(`downloadBtn-${bookId}`);
             
             progressDiv.style.display = 'block';
-            offlineBtn.disabled = true;
-            offlineBtn.innerHTML = '⏳ 0%';
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = '⏳ 0%';
             
             try {
                 const fileUrl = getPdfUrl(fileName);
@@ -298,44 +234,43 @@
                         const percent = Math.round((loaded / total) * 100);
                         progressFill.style.width = `${percent}%`;
                         progressText.innerText = `📥 ডাউনলোড: ${percent}%`;
-                        offlineBtn.innerHTML = `⏳ ${percent}%`;
+                        downloadBtn.innerHTML = `⏳ ${percent}%`;
                     }
                 }
                 
                 const blob = new Blob(chunks, { type: 'application/pdf' });
+                const blobUrl = URL.createObjectURL(blob);
                 
-                // IndexedDB-তে সেভ
-                await saveToIndexedDB(bookId, blob);
-                saveDownloadedBook(bookId);
+                // সেভ করা
+                saveDownloadedBook(bookId, blobUrl);
                 
-                // UI আপডেট
                 progressDiv.style.display = 'none';
-                offlineBtn.disabled = false;
-                offlineBtn.innerHTML = '📱 অফলাইনে পড়ুন';
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = '📱 অফলাইনে পড়ুন';
                 
-                showToast(`✅ "${bookName}" ডাউনলোড সম্পূর্ণ! এখন পড়া শুরু হচ্ছে...`);
+                showToast(`✅ "${bookName}" ডাউনলোড সম্পূর্ণ!`);
                 
                 // ডাউনলোড শেষে অটোমেটিক পড়া শুরু
-                setTimeout(async () => {
-                    await readOffline(bookId, bookName);
+                setTimeout(() => {
+                    readOffline(bookId, bookName);
                 }, 500);
                 
             } catch (error) {
                 console.error(error);
                 progressDiv.style.display = 'none';
-                offlineBtn.disabled = false;
-                offlineBtn.innerHTML = '📥 ডাউনলোড';
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = '📥 ডাউনলোড';
                 showToast(`❌ ডাউনলোড ব্যর্থ: ${error.message}`);
             }
         }
 
         // ========== হ্যান্ডলার ==========
-        async function handleOfflineClick(bookId, fileName, bookName) {
+        async function handleButtonClick(bookId, fileName, bookName) {
             const downloaded = getDownloadedBooks();
             if (downloaded.includes(bookId)) {
-                await readOffline(bookId, bookName);
+                readOffline(bookId, bookName);
             } else {
-                await downloadAndOpen(bookId, fileName, bookName);
+                await downloadAndSave(bookId, fileName, bookName);
             }
         }
 
@@ -346,6 +281,9 @@
             
             grid.innerHTML = books.map(book => {
                 const isDownloaded = downloaded.includes(book.id);
+                const btnText = isDownloaded ? '📱 অফলাইনে পড়ুন' : '📥 ডাউনলোড করুন';
+                const btnId = `downloadBtn-${book.id}`;
+                
                 return `
                     <div class="book-card">
                         <div class="book-icon">${book.icon}</div>
@@ -358,8 +296,8 @@
                             <button class="btn btn-online" onclick="readOnline('${book.fileName}', '${book.name}')">
                                 🌐 অনলাইনে পড়ুন
                             </button>
-                            <button class="btn btn-offline" id="offlineBtn-${book.id}" onclick="handleOfflineClick(${book.id}, '${book.fileName}', '${book.name}')">
-                                ${isDownloaded ? '📱 অফলাইনে পড়ুন' : '📥 ডাউনলোড করুন'}
+                            <button class="btn btn-offline" id="${btnId}" onclick="handleButtonClick(${book.id}, '${book.fileName}', '${book.name}')">
+                                ${btnText}
                             </button>
                         </div>
                         <div id="progress-${book.id}" style="display: none;">
