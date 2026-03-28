@@ -2,37 +2,14 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>প্রথম শ্রেণি - আমার বই</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', 'Hind Siliguri', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            min-height: 100vh; 
-            padding: 20px;
-        }
-        .container { 
-            max-width: 1200px; 
-            margin: 0 auto; 
-            background: white; 
-            border-radius: 30px; 
-            box-shadow: 0 30px 60px rgba(0,0,0,0.3); 
-            overflow: hidden;
-        }
-        .header { 
-            background: linear-gradient(135deg, #FF8C42, #FF6B6B, #4ECDC4); 
-            background-size: 200% 200%; 
-            animation: gradientShift 5s ease infinite; 
-            color: white; 
-            padding: 40px 30px; 
-            text-align: center;
-        }
-        @keyframes gradientShift { 
-            0% { background-position: 0% 50%; } 
-            50% { background-position: 100% 50%; } 
-            100% { background-position: 0% 50%; } 
-        }
+        body { font-family: 'Segoe UI', 'Hind Siliguri', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 30px; box-shadow: 0 30px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #FF8C42, #FF6B6B, #4ECDC4); background-size: 200% 200%; animation: gradientShift 5s ease infinite; color: white; padding: 40px 30px; text-align: center; }
+        @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         .header h1 { font-size: 42px; margin-bottom: 10px; }
         .class-badge { display: inline-block; background: rgba(255,255,255,0.3); padding: 8px 20px; border-radius: 50px; font-size: 18px; margin-top: 10px; }
         .platform-badge { display: inline-block; background: #4CAF50; padding: 5px 15px; border-radius: 20px; font-size: 12px; margin-top: 10px; margin-left: 10px; }
@@ -62,111 +39,17 @@
         .progress-bar { width: 100%; height: 10px; background: #e0e0e0; border-radius: 10px; overflow: hidden; }
         .progress-fill { height: 100%; background: linear-gradient(90deg, #4ECDC4, #FF8C42); width: 0%; transition: width 0.3s ease; }
         .progress-text { font-size: 12px; color: #FF8C42; margin-top: 8px; text-align: center; font-weight: bold; }
-        
-        /* ========== মোবাইল ফুলস্ক্রিন মডাল ========== */
-        .modal { 
-            display: none; 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: #000; 
-            z-index: 2000; 
-            padding: 0;
-            margin: 0;
-        }
-        .modal-content { 
-            background: #000; 
-            width: 100%; 
-            height: 100%; 
-            display: flex; 
-            flex-direction: column;
-            position: relative;
-        }
-        .modal-header { 
-            padding: 12px 16px; 
-            background: rgba(0,0,0,0.8); 
-            color: white; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 10;
-            backdrop-filter: blur(10px);
-        }
-        .modal-header h3 { 
-            font-size: 14px; 
-            display: flex; 
-            align-items: center; 
-            gap: 8px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .close-modal { 
-            background: rgba(255,255,255,0.2); 
-            color: white; 
-            border: none; 
-            width: 36px; 
-            height: 36px; 
-            border-radius: 50%; 
-            font-size: 20px; 
-            cursor: pointer; 
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .close-modal:hover { 
-            background: rgba(255,255,255,0.3);
-            transform: rotate(90deg);
-        }
-        .pdf-viewer { 
-            width: 100%; 
-            height: 100%; 
-            border: none;
-            background: #000;
-        }
-        
-        /* ডেস্কটপের জন্য মডাল স্টাইল */
-        @media (min-width: 768px) {
-            .modal { 
-                background: rgba(0,0,0,0.95); 
-                padding: 20px;
-            }
-            .modal-content { 
-                background: white; 
-                width: 100%; 
-                height: 90%; 
-                border-radius: 25px;
-                margin: auto;
-            }
-            .modal-header { 
-                background: linear-gradient(135deg, #FF8C42, #FF6B6B); 
-                position: relative;
-                border-radius: 25px 25px 0 0;
-                backdrop-filter: none;
-            }
-            .modal-header h3 { font-size: 18px; }
-            .pdf-viewer { border-radius: 0 0 25px 25px; }
-        }
-        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; padding: 20px; }
+        .modal-content { background: white; border-radius: 25px; width: 100%; height: 90%; display: flex; flex-direction: column; }
+        .modal-header { padding: 18px 24px; background: linear-gradient(135deg, #FF8C42, #FF6B6B); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 25px 25px 0 0; }
+        .close-modal { background: rgba(255,255,255,0.2); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; cursor: pointer; transition: all 0.3s ease; }
+        .close-modal:hover { transform: rotate(90deg); }
+        .pdf-viewer { width: 100%; flex: 1; border: none; }
         .footer { background: linear-gradient(135deg, #2c3e50, #3498db); color: white; padding: 30px; text-align: center; }
         .back-home { display: inline-block; margin-bottom: 15px; padding: 12px 24px; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 30px; }
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 12px 24px; border-radius: 50px; font-size: 14px; z-index: 3000; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-        
-        @media (max-width: 768px) { 
-            .header h1 { font-size: 32px; } 
-            .book-grid { grid-template-columns: 1fr; } 
-            .storage-info { flex-direction: column; }
-            .storage-stats { justify-content: center; }
-            .btn { padding: 14px 12px; font-size: 15px; }
-        }
+        @media (max-width: 768px) { .header h1 { font-size: 32px; } .book-grid { grid-template-columns: 1fr; } .storage-info { flex-direction: column; } }
     </style>
 </head>
 <body>
@@ -193,7 +76,7 @@
 
         <div class="footer">
             <a href="https://saadsikder01.github.io/myclass/" class="back-home">🏠 হোম পেজে ফিরুন</a>
-            <p>✨ পড়ার আনন্দে মগ্ন থাকুন | 📱 মোবাইলে ফুলস্ক্রিনে পড়ুন ✨</p>
+            <p>✨ পড়ার আনন্দে মগ্ন থাকুন | একবার ডাউনলোড করলেই অ্যাপের ভিতরেই পড়া যাবে ✨</p>
         </div>
     </div>
 
@@ -320,29 +203,16 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
-        // ========== PDF ভিউয়ার (মোবাইল ফুলস্ক্রিন) ==========
+        // ========== PDF ভিউয়ার ==========
         function openPdfInModal(url, title) {
-            const modal = document.getElementById('pdfModal');
-            const modalTitle = document.getElementById('modalTitle');
-            const pdfFrame = document.getElementById('pdfFrame');
-            
-            modalTitle.innerHTML = title;
-            pdfFrame.src = url;
-            modal.style.display = 'flex';
-            
-            // মোবাইলে ভিউপোর্ট অ্যাডজাস্ট
-            if (window.innerWidth <= 768) {
-                document.body.style.overflow = 'hidden';
-            }
+            document.getElementById('modalTitle').innerHTML = title;
+            document.getElementById('pdfFrame').src = url;
+            document.getElementById('pdfModal').style.display = 'block';
         }
 
         function closeModal() {
-            const modal = document.getElementById('pdfModal');
-            const pdfFrame = document.getElementById('pdfFrame');
-            
-            modal.style.display = 'none';
-            pdfFrame.src = '';
-            document.body.style.overflow = '';
+            document.getElementById('pdfModal').style.display = 'none';
+            document.getElementById('pdfFrame').src = '';
         }
 
         // ========== অনলাইনে পড়া ==========
