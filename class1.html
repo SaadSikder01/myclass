@@ -43,7 +43,8 @@
         .modal-content { background: #fff; width: 100%; height: 100%; display: flex; flex-direction: column; }
         .modal-header { padding: 12px 16px; background: #f5f5f5; color: #333; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; }
         .close-modal { background: none; border: none; font-size: 24px; cursor: pointer; width: 40px; height: 40px; border-radius: 50%; }
-        .pdf-viewer { flex: 1; width: 100%; border: none; }
+        .pdf-container { flex: 1; width: 100%; overflow: auto; background: #525659; }
+        .pdf-container iframe, .pdf-container embed { width: 100%; height: 100%; border: none; }
         .footer { background: linear-gradient(135deg, #2c3e50, #3498db); color: white; padding: 30px; text-align: center; }
         .back-home { display: inline-block; margin-bottom: 15px; padding: 12px 24px; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 30px; }
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 12px 24px; border-radius: 50px; font-size: 14px; z-index: 3000; animation: fadeIn 0.3s ease; }
@@ -85,7 +86,7 @@
                 <h3 id="modalTitle">পিডিএফ ভিউয়ার</h3>
                 <button class="close-modal" onclick="closeModal()">✕</button>
             </div>
-            <iframe id="pdfFrame" class="pdf-viewer" src=""></iframe>
+            <div id="pdfContainer" class="pdf-container"></div>
         </div>
     </div>
 
@@ -175,32 +176,63 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
-        // ========== PDF ভিউয়ার (iframe ব্যবহার করে ব্রাউজারের নেটিভ ভিউয়ার) ==========
-        function openPdfInModal(url, title) {
-            document.getElementById('modalTitle').innerHTML = title;
-            document.getElementById('pdfFrame').src = url;
+        // ========== PDF ভিউয়ার (অনলাইনের জন্য iframe, অফলাইনের জন্য embed) ==========
+        function openPdfInModal(url, title, isOffline = false) {
+            const container = document.getElementById('pdfContainer');
+            const modalTitle = document.getElementById('modalTitle');
+            modalTitle.innerHTML = title;
+            
+            // পুরনো কন্টেন্ট ক্লিয়ার
+            container.innerHTML = '';
+            
+            if (isOffline) {
+                // অফলাইন: embed ট্যাগ ব্যবহার (inline PDF দেখানোর চেষ্টা)
+                const embed = document.createElement('embed');
+                embed.src = url;
+                embed.type = 'application/pdf';
+                embed.style.width = '100%';
+                embed.style.height = '100%';
+                container.appendChild(embed);
+                
+                // Fallback: যদি embed কাজ না করে, মেসেজ দেখানো
+                setTimeout(() => {
+                    if (embed.clientHeight === 0) {
+                        container.innerHTML = '<div style="text-align:center; padding:40px; color:#666;">📄 PDF দেখা যাচ্ছে না। <a href="' + url + '" target="_blank">এখানে ক্লিক করে নতুন ট্যাবে পড়ুন</a></div>';
+                    }
+                }, 1000);
+            } else {
+                // অনলাইন: Google Docs viewer via iframe
+                const iframe = document.createElement('iframe');
+                iframe.src = url;
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.border = 'none';
+                container.appendChild(iframe);
+            }
+            
             document.getElementById('pdfModal').style.display = 'flex';
         }
 
         function closeModal() {
+            const container = document.getElementById('pdfContainer');
+            container.innerHTML = '';
             document.getElementById('pdfModal').style.display = 'none';
-            document.getElementById('pdfFrame').src = '';
         }
 
-        // ========== অনলাইনে পড়া (গুগল ডক্স ভিউয়ার - দ্রুত) ==========
+        // ========== অনলাইনে পড়া ==========
         function readOnline(fileName, bookName) {
             const pdfUrl = getPdfUrl(fileName);
             const viewerUrl = `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(pdfUrl)}`;
-            openPdfInModal(viewerUrl, `${bookName} - অনলাইন মোড 🌐`);
+            openPdfInModal(viewerUrl, `${bookName} - অনলাইন মোড 🌐`, false);
         }
 
-        // ========== অফলাইনে পড়া (ক্যাশ থেকে blob URL, ব্রাউজার ভিউয়ার) ==========
+        // ========== অফলাইনে পড়া ==========
         async function readOffline(bookId, cacheKey, bookName) {
             try {
                 const blob = await getFromCache(cacheKey);
                 if (blob) {
                     const url = URL.createObjectURL(blob);
-                    openPdfInModal(url, `${bookName} - অফলাইন মোড 📱`);
+                    openPdfInModal(url, `${bookName} - অফলাইন মোড 📱`, true);
                     // মডাল বন্ধ হলে URL রিলিজ
                     const modal = document.getElementById('pdfModal');
                     const closeHandler = () => {
