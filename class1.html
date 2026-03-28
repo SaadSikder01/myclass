@@ -12,7 +12,7 @@
         @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         .header h1 { font-size: 42px; margin-bottom: 10px; }
         .class-badge { display: inline-block; background: rgba(255,255,255,0.3); padding: 8px 20px; border-radius: 50px; font-size: 18px; margin-top: 10px; }
-        .platform-badge { display: inline-block; background: #4CAF50; padding: 5px 15px; border-radius: 20px; font-size: 12px; margin-top: 10px; margin-left: 10px; }
+        .platform-badge { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 12px; margin-top: 10px; margin-left: 10px; }
         .storage-info { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 20px 30px; margin: 20px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
         .storage-stats { display: flex; gap: 20px; flex-wrap: wrap; }
         .storage-card { background: white; padding: 12px 24px; border-radius: 15px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -97,12 +97,12 @@
                 badge.innerHTML = '📱 Capacitor অ্যাপ | অফলাইন সাপোর্ট ✅';
                 badge.style.background = '#4CAF50';
             } else {
-                badge.innerHTML = '🌐 ওয়েব ভার্সন | অনলাইন রিডিং';
+                badge.innerHTML = '🌐 ওয়েব ভার্সন | ডাউনলোড করে পড়ুন';
                 badge.style.background = '#2196F3';
             }
         }
 
-        // ========== localStorage ==========
+        // ========== localStorage (ডাউনলোড স্ট্যাটাস) ==========
         function getDownloadedBooks() {
             try {
                 const saved = localStorage.getItem(STORAGE_KEY);
@@ -164,7 +164,7 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
-        // ========== ব্লব থেকে বেস৬৪ ==========
+        // ========== ইউটিলিটি ==========
         function blobToBase64(blob) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -219,25 +219,19 @@
                 }
                 
                 const blob = new Blob(chunks, { type: 'application/pdf' });
-                const base64 = await blobToBase64(blob);
                 
                 if (isCapacitor) {
-                    // Capacitor: ফাইল সিস্টেমে সেভ
+                    // Capacitor: অ্যাপের অভ্যন্তরীণ স্টোরেজে সেভ
                     const { Filesystem, Directory } = Capacitor.Plugins;
-                    try {
-                        await Filesystem.mkdir({
-                            path: 'books',
-                            directory: Directory.Data,
-                            recursive: true
-                        });
-                    } catch (e) {}
+                    const base64 = await blobToBase64(blob);
+                    await Filesystem.mkdir({ path: 'books', directory: Directory.Data, recursive: true });
                     await Filesystem.writeFile({
                         path: `books/${bookId}.pdf`,
                         data: base64,
                         directory: Directory.Data
                     });
                 } else {
-                    // ওয়েব: ব্রাউজার ডাউনলোড ট্রিগার
+                    // ওয়েব: ফাইল ডাউনলোড ট্রিগার
                     const blobUrl = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = blobUrl;
@@ -255,10 +249,12 @@
                 downloadBtn.innerHTML = '📱 অফলাইনে পড়ুন';
                 showToast(`✅ "${bookName}" ডাউনলোড সম্পূর্ণ!`);
                 
-                // ডাউনলোড শেষে অটো ওপেন
-                setTimeout(async () => {
-                    await readOffline(bookId, bookName);
-                }, 500);
+                // ডাউনলোড শেষে অটো ওপেন (শুধু Capacitor)
+                if (isCapacitor) {
+                    setTimeout(async () => {
+                        await readOffline(bookId, bookName);
+                    }, 500);
+                }
                 
             } catch (error) {
                 console.error(error);
@@ -269,26 +265,26 @@
             }
         }
 
-        // ========== অফলাইনে পড়া ==========
+        // ========== অফলাইনে পড়া (শুধু Capacitor) ==========
         async function readOffline(bookId, bookName) {
-            if (isCapacitor) {
-                try {
-                    const { Filesystem, Directory } = Capacitor.Plugins;
-                    const file = await Filesystem.readFile({
-                        path: `books/${bookId}.pdf`,
-                        directory: Directory.Data
-                    });
-                    const blob = new Blob([base64ToArrayBuffer(file.data)], { type: 'application/pdf' });
-                    const blobUrl = URL.createObjectURL(blob);
-                    const { Browser } = Capacitor.Plugins;
-                    await Browser.open({ url: blobUrl });
-                    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-                } catch (error) {
-                    console.error(error);
-                    showToast('❌ পিডিএফ পাওয়া যায়নি! প্রথমে ডাউনলোড করুন।');
-                }
-            } else {
-                showToast('📖 ওয়েব ভার্সনে অফলাইন পড়ার জন্য ডাউনলোড করে ফাইল ম্যানেজার থেকে পড়ুন।');
+            if (!isCapacitor) {
+                showToast('📖 ওয়েব ভার্সনে অফলাইন পড়ার জন্য ফাইল ডাউনলোড করুন।');
+                return;
+            }
+            try {
+                const { Filesystem, Directory } = Capacitor.Plugins;
+                const { Browser } = Capacitor.Plugins;
+                const file = await Filesystem.readFile({
+                    path: `books/${bookId}.pdf`,
+                    directory: Directory.Data
+                });
+                const blob = new Blob([base64ToArrayBuffer(file.data)], { type: 'application/pdf' });
+                const blobUrl = URL.createObjectURL(blob);
+                await Browser.open({ url: blobUrl });
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+            } catch (error) {
+                console.error(error);
+                showToast('❌ পিডিএফ পাওয়া যায়নি! প্রথমে ডাউনলোড করুন।');
             }
         }
 
