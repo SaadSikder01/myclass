@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>প্রথম শ্রেণি - আমার বই</title>
+    <!-- PDF.js লাইব্রেরি -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', 'Hind Siliguri', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
@@ -44,18 +46,14 @@
         .modal-header { padding: 18px 24px; background: linear-gradient(135deg, #FF8C42, #FF6B6B); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 25px 25px 0 0; }
         .close-modal { background: rgba(255,255,255,0.2); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; cursor: pointer; transition: all 0.3s ease; }
         .close-modal:hover { transform: rotate(90deg); }
-        .pdf-viewer { width: 100%; flex: 1; border: none; }
+        .pdf-viewer { width: 100%; flex: 1; border: none; background: #f0f0f0; overflow: auto; }
+        .canvas-container { display: flex; flex-direction: column; align-items: center; padding: 10px; }
+        .pdf-page { margin: 10px auto; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
         .footer { background: linear-gradient(135deg, #2c3e50, #3498db); color: white; padding: 30px; text-align: center; }
         .back-home { display: inline-block; margin-bottom: 15px; padding: 12px 24px; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 30px; }
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 12px 24px; border-radius: 50px; font-size: 14px; z-index: 3000; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-        @media (max-width: 768px) { .header h1 { font-size: 32px; } .book-grid { grid-template-columns: 1fr; } .storage-info { flex-direction: column; } }
-        /* মোবাইলে PDF ভিউয়ার পুরো স্ক্রিন */
-        @media (max-width: 768px) {
-            .modal { padding: 0; }
-            .modal-content { height: 100%; border-radius: 0; }
-            .modal-header { border-radius: 0; }
-        }
+        @media (max-width: 768px) { .header h1 { font-size: 32px; } .book-grid { grid-template-columns: 1fr; } .storage-info { flex-direction: column; } .modal { padding: 0; } .modal-content { height: 100%; border-radius: 0; } .modal-header { border-radius: 0; } }
     </style>
 </head>
 <body>
@@ -92,11 +90,14 @@
                 <h3 id="modalTitle">পিডিএফ ভিউয়ার</h3>
                 <button class="close-modal" onclick="closeModal()">✕</button>
             </div>
-            <embed id="pdfEmbed" class="pdf-viewer" type="application/pdf" style="width:100%; height:100%;">
+            <div id="pdfViewer" class="pdf-viewer"></div>
         </div>
     </div>
 
     <script>
+        // PDF.js worker সেটআপ
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        
         // ========== 📚 প্রথম শ্রেণির বই ==========
         const books = [
             { id: 1, name: "বাংলা বই", subject: "বাংলা", icon: "📖", fileName: "bangla.pdf", cacheKey: "book_bangla" },
@@ -138,16 +139,6 @@
             } catch (error) {
                 console.error('Cache get error:', error);
                 return null;
-            }
-        }
-
-        async function deleteFromCache(cacheKey) {
-            try {
-                const cache = await caches.open(CACHE_NAME);
-                await cache.delete(cacheKey);
-                return true;
-            } catch (error) {
-                return false;
             }
         }
 
@@ -209,46 +200,72 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
-        // ========== PDF ভিউয়ার (embed ব্যবহার) ==========
-        function openPdfInModal(url, title) {
-            const modal = document.getElementById('pdfModal');
+        // ========== PDF.js দিয়ে PDF দেখানো ==========
+        async function renderPdfWithPdfJs(url, title) {
+            const viewerDiv = document.getElementById('pdfViewer');
             const modalTitle = document.getElementById('modalTitle');
-            const pdfEmbed = document.getElementById('pdfEmbed');
+            const modal = document.getElementById('pdfModal');
             
             modalTitle.innerHTML = title;
-            pdfEmbed.src = url;
+            viewerDiv.innerHTML = '<div style="text-align:center; padding:20px;">📖 লোড হচ্ছে...</div>';
             modal.style.display = 'block';
+            
+            try {
+                // PDF লোড করা
+                const loadingTask = pdfjsLib.getDocument(url);
+                const pdf = await loadingTask.promise;
+                
+                viewerDiv.innerHTML = '';
+                viewerDiv.className = 'canvas-container';
+                
+                // সব পৃষ্ঠা রেন্ডার করা
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const viewport = page.getViewport({ scale: 1.5 });
+                    
+                    // ক্যানভাস তৈরি
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    canvas.className = 'pdf-page';
+                    
+                    // রেন্ডার
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+                    await page.render(renderContext).promise;
+                    
+                    viewerDiv.appendChild(canvas);
+                }
+            } catch (error) {
+                console.error('PDF render error:', error);
+                viewerDiv.innerHTML = '<div style="text-align:center; padding:20px; color:red;">❌ PDF লোড করা যায়নি</div>';
+            }
         }
 
         function closeModal() {
             const modal = document.getElementById('pdfModal');
-            const pdfEmbed = document.getElementById('pdfEmbed');
+            const viewerDiv = document.getElementById('pdfViewer');
             modal.style.display = 'none';
-            pdfEmbed.src = ''; // clear src to stop loading
+            viewerDiv.innerHTML = '';
         }
 
-        // ========== অনলাইনে পড়া (গুগল ডক্স ভিউয়ার) ==========
+        // ========== অনলাইনে পড়া ==========
         function readOnline(fileName, bookName) {
             const pdfUrl = getPdfUrl(fileName);
-            // Google Docs viewer (মোবাইলে PDF ইনলাইনে দেখানোর জন্য কার্যকর)
-            const viewerUrl = `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(pdfUrl)}`;
-            openPdfInModal(viewerUrl, `${bookName} - অনলাইন মোড 🌐`);
+            renderPdfWithPdfJs(pdfUrl, `${bookName} - অনলাইন মোড 🌐`);
         }
 
-        // ========== অফলাইনে পড়া (ক্যাশ থেকে blob URL) ==========
+        // ========== অফলাইনে পড়া ==========
         async function readOffline(bookId, cacheKey, bookName) {
             try {
                 const blob = await getFromCache(cacheKey);
                 if (blob) {
                     const url = URL.createObjectURL(blob);
-                    openPdfInModal(url, `${bookName} - অফলাইন মোড 📱`);
-                    // মডাল বন্ধ হলে URL রিলিজ করুন
-                    const modal = document.getElementById('pdfModal');
-                    const closeHandler = () => {
-                        URL.revokeObjectURL(url);
-                        modal.removeEventListener('close', closeHandler);
-                    };
-                    modal.addEventListener('close', closeHandler);
+                    await renderPdfWithPdfJs(url, `${bookName} - অফলাইন মোড 📱`);
+                    URL.revokeObjectURL(url);
                 } else {
                     showToast('❌ পিডিএফ পাওয়া যায়নি! প্রথমে ডাউনলোড করুন।');
                 }
