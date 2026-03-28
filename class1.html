@@ -2,10 +2,8 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>প্রথম শ্রেণি - আমার বই</title>
-    <!-- PDF.js লাইব্রেরি -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', 'Hind Siliguri', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
@@ -41,27 +39,16 @@
         .progress-bar { width: 100%; height: 10px; background: #e0e0e0; border-radius: 10px; overflow: hidden; }
         .progress-fill { height: 100%; background: linear-gradient(90deg, #4ECDC4, #FF8C42); width: 0%; transition: width 0.3s ease; }
         .progress-text { font-size: 12px; color: #FF8C42; margin-top: 8px; text-align: center; font-weight: bold; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; padding: 20px; }
-        .modal-content { background: white; border-radius: 25px; width: 100%; height: 90%; display: flex; flex-direction: column; overflow: hidden; }
-        .modal-header { padding: 18px 24px; background: linear-gradient(135deg, #FF8C42, #FF6B6B); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 25px 25px 0 0; flex-shrink: 0; }
-        .close-modal { background: rgba(255,255,255,0.2); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; cursor: pointer; transition: all 0.3s ease; }
-        .close-modal:hover { transform: rotate(90deg); }
-        .pdf-viewer { flex: 1; overflow: auto; background: #525659; padding: 10px; }
-        .pdf-page-container { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-        .pdf-page { box-shadow: 0 2px 10px rgba(0,0,0,0.3); background: white; max-width: 100%; height: auto; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; padding: 0; }
+        .modal-content { background: #fff; width: 100%; height: 100%; display: flex; flex-direction: column; }
+        .modal-header { padding: 12px 16px; background: #f5f5f5; color: #333; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; }
+        .close-modal { background: none; border: none; font-size: 24px; cursor: pointer; width: 40px; height: 40px; border-radius: 50%; }
+        .pdf-viewer { flex: 1; width: 100%; border: none; }
         .footer { background: linear-gradient(135deg, #2c3e50, #3498db); color: white; padding: 30px; text-align: center; }
         .back-home { display: inline-block; margin-bottom: 15px; padding: 12px 24px; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 30px; }
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 12px 24px; border-radius: 50px; font-size: 14px; z-index: 3000; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-        @media (max-width: 768px) { 
-            .header h1 { font-size: 32px; } 
-            .book-grid { grid-template-columns: 1fr; } 
-            .storage-info { flex-direction: column; }
-            .modal { padding: 0; }
-            .modal-content { height: 100%; border-radius: 0; }
-            .modal-header { border-radius: 0; }
-            .pdf-viewer { padding: 5px; }
-        }
+        @media (max-width: 768px) { .header h1 { font-size: 32px; } .book-grid { grid-template-columns: 1fr; } .storage-info { flex-direction: column; } }
     </style>
 </head>
 <body>
@@ -98,14 +85,11 @@
                 <h3 id="modalTitle">পিডিএফ ভিউয়ার</h3>
                 <button class="close-modal" onclick="closeModal()">✕</button>
             </div>
-            <div id="pdfViewer" class="pdf-viewer"></div>
+            <iframe id="pdfFrame" class="pdf-viewer" src=""></iframe>
         </div>
     </div>
 
     <script>
-        // PDF.js worker সেটআপ
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-        
         // ========== 📚 প্রথম শ্রেণির বই ==========
         const books = [
             { id: 1, name: "বাংলা বই", subject: "বাংলা", icon: "📖", fileName: "bangla.pdf", cacheKey: "book_bangla" },
@@ -122,41 +106,24 @@
 
         // ========== Cache Storage API ==========
         async function saveToCache(cacheKey, blob) {
-            try {
-                const cache = await caches.open(CACHE_NAME);
-                const response = new Response(blob, {
-                    headers: { 'Content-Type': 'application/pdf' }
-                });
-                await cache.put(cacheKey, response);
-                return true;
-            } catch (error) {
-                console.error('Cache save error:', error);
-                return false;
-            }
+            const cache = await caches.open(CACHE_NAME);
+            const response = new Response(blob, {
+                headers: { 'Content-Type': 'application/pdf' }
+            });
+            await cache.put(cacheKey, response);
         }
 
         async function getFromCache(cacheKey) {
-            try {
-                const cache = await caches.open(CACHE_NAME);
-                const response = await cache.match(cacheKey);
-                if (response) {
-                    const blob = await response.blob();
-                    return blob;
-                }
-                return null;
-            } catch (error) {
-                console.error('Cache get error:', error);
-                return null;
+            const cache = await caches.open(CACHE_NAME);
+            const response = await cache.match(cacheKey);
+            if (response) {
+                return await response.blob();
             }
+            return null;
         }
 
         async function clearAllCache() {
-            try {
-                await caches.delete(CACHE_NAME);
-                return true;
-            } catch (error) {
-                return false;
-            }
+            await caches.delete(CACHE_NAME);
         }
 
         // ========== localStorage ==========
@@ -208,81 +175,44 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
-        // ========== PDF.js দিয়ে PDF দেখানো (সব পেজ, সঠিক সাইজ) ==========
-        async function renderPdfWithPdfJs(url, title) {
-            const viewerDiv = document.getElementById('pdfViewer');
-            const modalTitle = document.getElementById('modalTitle');
-            const modal = document.getElementById('pdfModal');
-            
-            modalTitle.innerHTML = title;
-            viewerDiv.innerHTML = '<div style="text-align:center; padding:40px; color:white;">📖 PDF লোড হচ্ছে...</div>';
-            modal.style.display = 'block';
-            
-            try {
-                const loadingTask = pdfjsLib.getDocument(url);
-                const pdf = await loadingTask.promise;
-                
-                viewerDiv.innerHTML = '';
-                const container = document.createElement('div');
-                container.className = 'pdf-page-container';
-                
-                // স্ক্রিনের প্রস্থ অনুযায়ী স্কেল ক্যালকুলেশন
-                const containerWidth = viewerDiv.clientWidth - 20; // padding adjust
-                const scale = containerWidth / 595; // A4 প্রস্থ ~595px (72 DPI)
-                
-                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-                    const page = await pdf.getPage(pageNum);
-                    const viewport = page.getViewport({ scale: scale });
-                    
-                    const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d');
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-                    canvas.className = 'pdf-page';
-                    
-                    const renderContext = {
-                        canvasContext: context,
-                        viewport: viewport
-                    };
-                    await page.render(renderContext).promise;
-                    
-                    container.appendChild(canvas);
-                }
-                
-                viewerDiv.appendChild(container);
-                
-            } catch (error) {
-                console.error('PDF render error:', error);
-                viewerDiv.innerHTML = '<div style="text-align:center; padding:40px; color:red;">❌ PDF লোড করা যায়নি</div>';
-            }
+        // ========== PDF ভিউয়ার (iframe ব্যবহার করে ব্রাউজারের নেটিভ ভিউয়ার) ==========
+        function openPdfInModal(url, title) {
+            document.getElementById('modalTitle').innerHTML = title;
+            document.getElementById('pdfFrame').src = url;
+            document.getElementById('pdfModal').style.display = 'flex';
         }
 
         function closeModal() {
-            const modal = document.getElementById('pdfModal');
-            const viewerDiv = document.getElementById('pdfViewer');
-            modal.style.display = 'none';
-            viewerDiv.innerHTML = '';
+            document.getElementById('pdfModal').style.display = 'none';
+            document.getElementById('pdfFrame').src = '';
         }
 
-        // ========== অনলাইনে পড়া ==========
+        // ========== অনলাইনে পড়া (গুগল ডক্স ভিউয়ার - দ্রুত) ==========
         function readOnline(fileName, bookName) {
             const pdfUrl = getPdfUrl(fileName);
-            renderPdfWithPdfJs(pdfUrl, `${bookName} - অনলাইন মোড 🌐`);
+            const viewerUrl = `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(pdfUrl)}`;
+            openPdfInModal(viewerUrl, `${bookName} - অনলাইন মোড 🌐`);
         }
 
-        // ========== অফলাইনে পড়া ==========
+        // ========== অফলাইনে পড়া (ক্যাশ থেকে blob URL, ব্রাউজার ভিউয়ার) ==========
         async function readOffline(bookId, cacheKey, bookName) {
             try {
                 const blob = await getFromCache(cacheKey);
                 if (blob) {
                     const url = URL.createObjectURL(blob);
-                    await renderPdfWithPdfJs(url, `${bookName} - অফলাইন মোড 📱`);
-                    URL.revokeObjectURL(url);
+                    openPdfInModal(url, `${bookName} - অফলাইন মোড 📱`);
+                    // মডাল বন্ধ হলে URL রিলিজ
+                    const modal = document.getElementById('pdfModal');
+                    const closeHandler = () => {
+                        URL.revokeObjectURL(url);
+                        modal.removeEventListener('close', closeHandler);
+                    };
+                    modal.addEventListener('close', closeHandler);
                 } else {
                     showToast('❌ পিডিএফ পাওয়া যায়নি! প্রথমে ডাউনলোড করুন।');
                 }
             } catch (error) {
-                console.error('Offline read error:', error);
+                console.error(error);
                 showToast('❌ অফলাইনে পড়া সম্ভব হচ্ছে না');
             }
         }
@@ -306,7 +236,6 @@
                 const contentLength = response.headers.get('content-length');
                 const total = contentLength ? parseInt(contentLength) : 0;
                 let loaded = 0;
-                
                 const reader = response.body.getReader();
                 const chunks = [];
                 
@@ -330,7 +259,6 @@
                 progressDiv.style.display = 'none';
                 downloadBtn.disabled = false;
                 downloadBtn.innerHTML = '📱 অফলাইনে পড়ুন';
-                
                 showToast(`✅ "${bookName}" ডাউনলোড সম্পূর্ণ!`);
                 
                 setTimeout(async () => {
