@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>তৃতীয় শ্রেণি - আমার বই</title>
+    <!-- PDF.js লাইব্রেরি -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', 'Hind Siliguri', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
@@ -39,11 +44,19 @@
         .progress-bar { width: 100%; height: 10px; background: #e0e0e0; border-radius: 10px; overflow: hidden; }
         .progress-fill { height: 100%; background: linear-gradient(90deg, #4ECDC4, #FF8C42); width: 0%; transition: width 0.3s ease; }
         .progress-text { font-size: 12px; color: #FF8C42; margin-top: 8px; text-align: center; font-weight: bold; }
+        /* PDF.js ভিউয়ার স্টাইল */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; padding: 20px; }
+        .modal-content { background: #525659; border-radius: 25px; width: 100%; height: 90%; display: flex; flex-direction: column; overflow: hidden; }
+        .modal-header { padding: 18px 24px; background: linear-gradient(135deg, #FF8C42, #FF6B6B); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 25px 25px 0 0; flex-shrink: 0; }
+        .close-modal { background: rgba(255,255,255,0.2); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; cursor: pointer; transition: all 0.3s ease; }
+        .close-modal:hover { transform: rotate(90deg); }
+        .pdf-viewer { flex: 1; overflow: auto; background: #525659; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+        .pdf-page { box-shadow: 0 4px 15px rgba(0,0,0,0.3); background: white; max-width: 100%; height: auto; }
         .footer { background: linear-gradient(135deg, #2c3e50, #3498db); color: white; padding: 30px; text-align: center; }
         .back-home { display: inline-block; margin-bottom: 15px; padding: 12px 24px; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 30px; }
         .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 12px 24px; border-radius: 50px; font-size: 14px; z-index: 3000; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-        @media (max-width: 768px) { .header h1 { font-size: 32px; } .book-grid { grid-template-columns: 1fr; } .storage-info { flex-direction: column; } }
+        @media (max-width: 768px) { .header h1 { font-size: 32px; } .book-grid { grid-template-columns: 1fr; } .storage-info { flex-direction: column; } .modal { padding: 0; } .modal-content { height: 100%; border-radius: 0; } .modal-header { border-radius: 0; } .pdf-viewer { padding: 10px; } }
     </style>
 </head>
 <body>
@@ -76,6 +89,16 @@
         <div class="footer">
             <a href="https://saadsikder01.github.io/myclass/" class="back-home">🏠 হোম পেজে ফিরুন</a>
             <p>✨ পড়ার আনন্দে মগ্ন থাকুন | একবার ডাউনলোড করলেই অ্যাপের ভিতরেই পড়া যাবে ✨</p>
+        </div>
+    </div>
+
+    <div id="pdfModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">পিডিএফ ভিউয়ার</h3>
+                <button class="close-modal" onclick="closeModal()">✕</button>
+            </div>
+            <div id="pdfViewer" class="pdf-viewer"></div>
         </div>
     </div>
 
@@ -202,6 +225,84 @@
             }
         }
 
+        // ========== PDF.js দিয়ে পিডিএফ দেখানোর ফাংশন (অনলাইন ও অফলাইন উভয়ের জন্য) ==========
+        async function renderPdfWithPdfJs(url, title) {
+            const viewerDiv = document.getElementById('pdfViewer');
+            const modalTitle = document.getElementById('modalTitle');
+            const modal = document.getElementById('pdfModal');
+            
+            viewerDiv.innerHTML = '<div style="text-align:center; padding:40px; color:white;">📖 পিডিএফ লোড হচ্ছে...</div>';
+            modalTitle.innerHTML = title;
+            modal.style.display = 'block';
+            
+            try {
+                const loadingTask = pdfjsLib.getDocument(url);
+                const pdf = await loadingTask.promise;
+                
+                viewerDiv.innerHTML = ''; // ক্লিয়ার
+                viewerDiv.className = 'pdf-viewer';
+                
+                // স্ক্রিন সাইজ অনুযায়ী স্কেল নির্ধারণ
+                const containerWidth = viewerDiv.clientWidth - 30; // প্যাডিং বাদে
+                const scale = Math.max(0.8, containerWidth / 595); // A4 প্রস্থ ~595px
+                
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const viewport = page.getViewport({ scale: scale });
+                    
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    canvas.className = 'pdf-page';
+                    
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    viewerDiv.appendChild(canvas);
+                }
+            } catch (error) {
+                console.error('PDF render error:', error);
+                viewerDiv.innerHTML = `<div style="text-align:center; padding:40px; color:red;">❌ পিডিএফ লোড করা যায়নি।<br>${error.message}</div>`;
+            }
+        }
+
+        // ========== অনলাইনে পড়া (PDF.js ব্যবহার করে) ==========
+        function readOnline(fileName, bookName) {
+            const pdfUrl = getPdfUrl(fileName);
+            renderPdfWithPdfJs(pdfUrl, `${bookName} - অনলাইন মোড 🌐`);
+        }
+
+        // ========== অফলাইনে পড়া (File Opener ব্যবহার করে - দ্রুত) ==========
+        async function readOffline(bookId, bookName) {
+            if (!isCapacitor) {
+                showToast('📖 ওয়েব ভার্সনে অফলাইন পড়ার জন্য ফাইল ডাউনলোড করুন।');
+                return;
+            }
+            
+            try {
+                const { Filesystem } = Capacitor.Plugins;
+                const { FileOpener } = Capacitor.Plugins;
+                
+                const exists = await fileExists(bookId);
+                if (!exists) {
+                    showToast('❌ পিডিএফ পাওয়া যায়নি! প্রথমে ডাউনলোড করুন।');
+                    return;
+                }
+                
+                const uriResult = await Filesystem.getUri({
+                    path: `book_${bookId}.pdf`,
+                    directory: "DATA"
+                });
+                const fileUri = uriResult.uri;
+                await FileOpener.open({
+                    filePath: fileUri,
+                    contentType: 'application/pdf'
+                });
+            } catch (error) {
+                console.error('Offline read error:', error);
+                showToast(`❌ পিডিএফ পড়া সম্ভব হচ্ছে না: ${error.message || error}`);
+            }
+        }
+
         // ========== ডাউনলোড ফাংশন ==========
         async function downloadAndSave(bookId, fileName, bookName) {
             const progressDiv = document.getElementById(`progress-${bookId}`);
@@ -242,13 +343,11 @@
                 if (isCapacitor) {
                     const { Filesystem } = Capacitor.Plugins;
                     const base64 = await blobToBase64(blob);
-                    
                     await Filesystem.writeFile({
                         path: `book_${bookId}.pdf`,
                         data: base64,
                         directory: "DATA"
                     });
-                    
                     console.log(`✅ File saved: book_${bookId}.pdf`);
                 } else {
                     const blobUrl = URL.createObjectURL(blob);
@@ -268,13 +367,11 @@
                 downloadBtn.innerHTML = '📱 অফলাইনে পড়ুন';
                 showToast(`✅ "${bookName}" ডাউনলোড সম্পূর্ণ!`);
                 
-                // ডাউনলোড শেষে অটো ওপেন
                 if (isCapacitor) {
                     setTimeout(async () => {
                         await readOffline(bookId, bookName);
                     }, 500);
                 }
-                
             } catch (error) {
                 console.error('Download error:', error);
                 progressDiv.style.display = 'none';
@@ -284,61 +381,9 @@
             }
         }
 
-        // ========== অফলাইনে পড়া (File Opener ব্যবহার করে) ==========
-        async function readOffline(bookId, bookName) {
-            if (!isCapacitor) {
-                showToast('📖 ওয়েব ভার্সনে অফলাইন পড়ার জন্য ফাইল ডাউনলোড করুন।');
-                return;
-            }
-            
-            try {
-                const { Filesystem } = Capacitor.Plugins;
-                const { FileOpener } = Capacitor.Plugins;
-                
-                // ফাইল আছে কিনা চেক
-                const exists = await fileExists(bookId);
-                if (!exists) {
-                    showToast('❌ পিডিএফ পাওয়া যায়নি! প্রথমে ডাউনলোড করুন।');
-                    return;
-                }
-                
-                // ফাইলের ইউআরআই পাওয়া
-                const uriResult = await Filesystem.getUri({
-                    path: `book_${bookId}.pdf`,
-                    directory: "DATA"
-                });
-                const fileUri = uriResult.uri;
-                console.log('File URI:', fileUri);
-                
-                // File Opener দিয়ে ফাইল খোলা
-                await FileOpener.open({
-                    filePath: fileUri,
-                    contentType: 'application/pdf'
-                });
-                
-            } catch (error) {
-                console.error('Offline read error:', error);
-                showToast(`❌ পিডিএফ পড়া সম্ভব হচ্ছে না: ${error.message || error}`);
-            }
-        }
-
-        // ========== অনলাইনে পড়া (Google Docs Viewer) ==========
-        function readOnline(fileName, bookName) {
-            const pdfUrl = getPdfUrl(fileName);
-            const viewerUrl = `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(pdfUrl)}`;
-            if (isCapacitor) {
-                const { Browser } = Capacitor.Plugins;
-                Browser.open({ url: viewerUrl });
-            } else {
-                window.open(viewerUrl, '_blank');
-            }
-        }
-
         // ========== হ্যান্ডলার ==========
         async function handleButtonClick(bookId, fileName, bookName) {
             const exists = await fileExists(bookId);
-            console.log(`Book ${bookId} - file exists: ${exists}`);
-            
             if (exists) {
                 await readOffline(bookId, bookName);
             } else {
@@ -352,7 +397,7 @@
             const mainBooks = books.filter(b => b.category === 'main');
             const religiousBooks = books.filter(b => b.category === 'religious');
             
-            // প্রতিটি বইয়ের জন্য ফাইল আছে কিনা চেক করে localStorage সিঙ্ক করুন
+            // সিঙ্ক
             const syncedDownloaded = [...downloaded];
             for (const book of books) {
                 if (isCapacitor) {
@@ -365,11 +410,9 @@
                     }
                 }
             }
-            
             if (JSON.stringify(syncedDownloaded) !== JSON.stringify(downloaded)) {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(syncedDownloaded));
             }
-            
             const finalDownloaded = getDownloadedBooks();
             
             document.getElementById('mainBooksGrid').innerHTML = renderBookGrid(mainBooks, finalDownloaded);
@@ -381,7 +424,6 @@
                 const isDownloaded = downloadedBooks.includes(book.id);
                 const btnText = isDownloaded ? '📱 অফলাইনে পড়ুন' : '📥 ডাউনলোড করুন';
                 const btnId = `downloadBtn-${book.id}`;
-                
                 return `
                     <div class="book-card">
                         <div class="book-icon">${book.icon}</div>
@@ -408,6 +450,18 @@
                 `;
             }).join('');
         }
+
+        function closeModal() {
+            document.getElementById('pdfModal').style.display = 'none';
+            document.getElementById('pdfViewer').innerHTML = '';
+        }
+
+        window.onclick = (event) => {
+            if (event.target === document.getElementById('pdfModal')) closeModal();
+        };
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeModal();
+        });
 
         // পৃষ্ঠা লোড
         document.addEventListener('DOMContentLoaded', async () => {
