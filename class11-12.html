@@ -72,20 +72,25 @@
         </div>
 
         <div class="info-note">
-            ℹ️ <strong>বিঃদ্রঃ</strong> রসায়ন, পদার্থ বিজ্ঞান ও উচ্চতর গণিতের পিডিএফ গুগল ড্রাইভে হোস্ট করা আছে। তাই শুধুমাত্র অনলাইনে পড়ার সুবিধা থাকছে (ডাউনলোড ও অফলাইন পড়া সংরক্ষিত নয়)।
+            ℹ️ <strong>বিঃদ্রঃ</strong> রসায়ন, পদার্থ বিজ্ঞান ও উচ্চতর গণিতের পিডিএফ গুগল ড্রাইভে হোস্ট করা আছে। এগুলো শুধুমাত্র অনলাইনে পড়া যাবে (ডাউনলোড ও অফলাইন পড়া যাবে না)।
         </div>
 
         <div class="storage-info">
             <div class="storage-stats">
                 <div class="storage-card"><span>💾</span><div><div style="font-size:12px;">ডাউনলোড করা বই</div><div class="value" id="downloadedCount">০</div></div></div>
-                <div class="storage-card"><span>📚</span><div><div style="font-size:12px;">মোট বই</div><div class="value" id="totalBooks">৮</div></div></div>
+                <div class="storage-card"><span>📚</span><div><div style="font-size:12px;">মোট বই</div><div class="value" id="totalBooks">৫</div></div></div>
             </div>
             <button class="clear-storage" onclick="clearAllDownloads()">🗑️ সব ডাউনলোড মুছুন</button>
         </div>
 
         <div class="category-section">
-            <div class="category-title">📚 সকল বইসমূহ</div>
-            <div class="book-grid" id="allBooksGrid"></div>
+            <div class="category-title">📚 গিটহাবের বই (পূর্ণ সাপোর্ট)</div>
+            <div class="book-grid" id="githubBooksGrid"></div>
+        </div>
+
+        <div class="category-section">
+            <div class="category-title">☁️ গুগল ড্রাইভের বই (শুধু অনলাইন)</div>
+            <div class="book-grid" id="driveBooksGrid"></div>
         </div>
 
         <div class="footer">
@@ -100,23 +105,25 @@
                 <h3 id="modalTitle">পিডিএফ ভিউয়ার</h3>
                 <button class="close-modal" onclick="closeModal()">✕</button>
             </div>
-            <div id="pdfViewer" class="pdf-viewer"></div>
+            <iframe id="driveFrame" style="display: none; width: 100%; height: 100%; border: none;"></iframe>
+            <div id="pdfViewer" class="pdf-viewer" style="display: flex;"></div>
         </div>
     </div>
 
     <script>
         // ========== 📚 একাদশ-দ্বাদশ শ্রেণির বই ==========
-        const books = [
-            // গিটহাবের ফাইল (পূর্ণ সাপোর্ট)
-            { id: 1, name: "সাহিত্যপাঠ", subject: "বাংলা", icon: "📖", fileName: "11-12bangla.pdf", source: "github" },
-            { id: 2, name: "সহপাঠ", subject: "বাংলা", icon: "📚", fileName: "11-12sohopath.pdf", source: "github" },
-            { id: 3, name: "English for Today", subject: "English", icon: "🇬🇧", fileName: "11-12english.pdf", source: "github" },
-            { id: 4, name: "তথ্য ও যোগাযোগ প্রযুক্তি", subject: "ICT", icon: "💻", fileName: "11-12ict.pdf", source: "github" },
-            { id: 5, name: "জীববিজ্ঞান", subject: "Biology", icon: "🧬", fileName: "11-12biology.pdf", source: "github" },
-            // গুগল ড্রাইভের ফাইল (শুধু অনলাইন)
-            { id: 6, name: "রসায়ন", subject: "Chemistry", icon: "⚗️", fileId: "1EfNnISJsLweGzCU5pjqgUS2XJ9928wJ0", source: "drive" },
-            { id: 7, name: "পদার্থ বিজ্ঞান", subject: "Physics", icon: "⚡", fileId: "1enJIQ68OizDbdN6PGvdAFrkDHM5Z3_gd", source: "drive" },
-            { id: 8, name: "উচ্চতর গণিত", subject: "Higher Math", icon: "📐", fileId: "18v_As6_NiayDerPSxUotZOelH-R1KTi0", source: "drive" }
+        const githubBooks = [
+            { id: 1, name: "সাহিত্যপাঠ", subject: "বাংলা", icon: "📖", fileName: "11-12bangla.pdf" },
+            { id: 2, name: "সহপাঠ", subject: "বাংলা", icon: "📚", fileName: "11-12sohopath.pdf" },
+            { id: 3, name: "English for Today", subject: "English", icon: "🇬🇧", fileName: "11-12english.pdf" },
+            { id: 4, name: "তথ্য ও যোগাযোগ প্রযুক্তি", subject: "ICT", icon: "💻", fileName: "11-12ict.pdf" },
+            { id: 5, name: "জীববিজ্ঞান", subject: "Biology", icon: "🧬", fileName: "11-12biology.pdf" }
+        ];
+
+        const driveBooks = [
+            { id: 6, name: "রসায়ন", subject: "Chemistry", icon: "⚗️", fileId: "1EfNnISJsLweGzCU5pjqgUS2XJ9928wJ0" },
+            { id: 7, name: "পদার্থ বিজ্ঞান", subject: "Physics", icon: "⚡", fileId: "1enJIQ68OizDbdN6PGvdAFrkDHM5Z3_gd" },
+            { id: 8, name: "উচ্চতর গণিত", subject: "Higher Math", icon: "📐", fileId: "18v_As6_NiayDerPSxUotZOelH-R1KTi0" }
         ];
 
         // গিটহাব ফাইলের URL
@@ -124,8 +131,8 @@
             return `https://saadsikder01.github.io/myclass/${fileName}`;
         }
 
-        // গুগল ড্রাইভ ফাইলের প্রিভিউ URL
-        function getDrivePreviewUrl(fileId) {
+        // গুগল ড্রাইভের এম্বেড URL
+        function getDriveEmbedUrl(fileId) {
             return `https://drive.google.com/file/d/${fileId}/preview`;
         }
 
@@ -195,7 +202,7 @@
         function updateUI() {
             const downloaded = getDownloadedBooks();
             document.getElementById('downloadedCount').innerText = downloaded.length;
-            document.getElementById('totalBooks').innerText = books.filter(b => b.source === 'github').length;
+            document.getElementById('totalBooks').innerText = githubBooks.length;
             renderBooks();
         }
 
@@ -217,7 +224,7 @@
             });
         }
 
-        // ========== ফাইল আছে কিনা চেক করা (শুধু গিটহাবের জন্য) ==========
+        // ========== ফাইল আছে কিনা চেক করা ==========
         async function fileExists(bookId) {
             if (!isCapacitor) return false;
             try {
@@ -232,11 +239,16 @@
             }
         }
 
-        // ========== PDF.js দিয়ে পিডিএফ দেখানোর ফাংশন ==========
+        // ========== PDF.js দিয়ে পিডিএফ দেখানো (স্কেল 2.0 - ভালো কোয়ালিটি) ==========
         async function renderPdfWithPdfJs(url, title) {
             const viewerDiv = document.getElementById('pdfViewer');
+            const driveFrame = document.getElementById('driveFrame');
             const modalTitle = document.getElementById('modalTitle');
             const modal = document.getElementById('pdfModal');
+            
+            // লুকান iframe, দেখান PDF.js ভিউয়ার
+            driveFrame.style.display = 'none';
+            viewerDiv.style.display = 'flex';
             
             viewerDiv.innerHTML = '<div style="text-align:center; padding:40px; color:white;">📖 পিডিএফ লোড হচ্ছে...</div>';
             modalTitle.innerHTML = title;
@@ -249,8 +261,8 @@
                 viewerDiv.innerHTML = '';
                 viewerDiv.className = 'pdf-viewer';
                 
-                const containerWidth = viewerDiv.clientWidth - 30;
-                const scale = Math.max(0.8, containerWidth / 595);
+                // ভালো কোয়ালিটির জন্য স্কেল 2.0
+                const scale = 2.0;
                 
                 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                     const page = await pdf.getPage(pageNum);
@@ -271,10 +283,21 @@
             }
         }
 
-        // ========== গুগল ড্রাইভ ফাইলের জন্য অনলাইন প্রিভিউ ==========
+        // ========== গুগল ড্রাইভ ফাইলের জন্য এম্বেডেড ভিউয়ার ==========
         function openDrivePreview(fileId, bookName) {
-            const previewUrl = getDrivePreviewUrl(fileId);
-            renderPdfWithPdfJs(previewUrl, `${bookName} - অনলাইন মোড 🌐 (গুগল ড্রাইভ)`);
+            const viewerDiv = document.getElementById('pdfViewer');
+            const driveFrame = document.getElementById('driveFrame');
+            const modalTitle = document.getElementById('modalTitle');
+            const modal = document.getElementById('pdfModal');
+            
+            // PDF.js ভিউয়ার লুকান, iframe দেখান
+            viewerDiv.style.display = 'none';
+            driveFrame.style.display = 'block';
+            
+            const embedUrl = getDriveEmbedUrl(fileId);
+            driveFrame.src = embedUrl;
+            modalTitle.innerHTML = `${bookName} - অনলাইন মোড 🌐 (গুগল ড্রাইভ)`;
+            modal.style.display = 'block';
         }
 
         // ========== গিটহাব ফাইলের জন্য অনলাইনে পড়া ==========
@@ -315,7 +338,7 @@
             }
         }
 
-        // ========== ডাউনলোড ফাংশন (শুধু গিটহাবের জন্য) ==========
+        // ========== ডাউনলোড ফাংশন ==========
         async function downloadAndSave(bookId, fileName, bookName) {
             const progressDiv = document.getElementById(`progress-${bookId}`);
             const progressFill = document.getElementById(`progressFill-${bookId}`);
@@ -414,15 +437,13 @@
             // সিঙ্ক (শুধু গিটহাবের জন্য)
             const syncedDownloaded = [...downloaded];
             if (isCapacitor) {
-                for (const book of books) {
-                    if (book.source === 'github') {
-                        const exists = await fileExists(book.id);
-                        if (exists && !syncedDownloaded.includes(book.id)) {
-                            syncedDownloaded.push(book.id);
-                        } else if (!exists && syncedDownloaded.includes(book.id)) {
-                            const index = syncedDownloaded.indexOf(book.id);
-                            syncedDownloaded.splice(index, 1);
-                        }
+                for (const book of githubBooks) {
+                    const exists = await fileExists(book.id);
+                    if (exists && !syncedDownloaded.includes(book.id)) {
+                        syncedDownloaded.push(book.id);
+                    } else if (!exists && syncedDownloaded.includes(book.id)) {
+                        const index = syncedDownloaded.indexOf(book.id);
+                        syncedDownloaded.splice(index, 1);
                     }
                 }
             }
@@ -431,62 +452,67 @@
             }
             const finalDownloaded = getDownloadedBooks();
             
-            const allBooksGrid = document.getElementById('allBooksGrid');
-            allBooksGrid.innerHTML = books.map(book => {
-                if (book.source === 'github') {
-                    const isDownloaded = finalDownloaded.includes(book.id);
-                    const btnText = isDownloaded ? '📱 অফলাইনে পড়ুন' : '📥 ডাউনলোড করুন';
-                    const btnId = `downloadBtn-${book.id}`;
-                    return `
-                        <div class="book-card">
-                            <div class="book-icon">${book.icon}</div>
-                            <div class="book-title">${book.name}</div>
-                            <div class="book-subject">${book.subject}</div>
-                            <div class="download-status ${isDownloaded ? 'status-downloaded' : 'status-not-downloaded'}">
-                                ${isDownloaded ? '✓ ডাউনলোড হয়েছে' : '○ ডাউনলোড হয়নি'}
-                            </div>
-                            <div class="button-group">
-                                <button class="btn btn-online" onclick="readOnline('${book.fileName}', '${book.name}')">
-                                    🌐 অনলাইনে পড়ুন
-                                </button>
-                                <button class="btn btn-offline" id="${btnId}" onclick="handleGitHubButtonClick(${book.id}, '${book.fileName}', '${book.name}')">
-                                    ${btnText}
-                                </button>
-                            </div>
-                            <div id="progress-${book.id}" style="display: none;">
-                                <div class="progress-container">
-                                    <div class="progress-bar"><div class="progress-fill" id="progressFill-${book.id}"></div></div>
-                                    <div class="progress-text" id="progressText-${book.id}">ডাউনলোড শুরু...</div>
-                                </div>
+            // গিটহাবের বই রেন্ডার
+            const githubGrid = document.getElementById('githubBooksGrid');
+            githubGrid.innerHTML = githubBooks.map(book => {
+                const isDownloaded = finalDownloaded.includes(book.id);
+                const btnText = isDownloaded ? '📱 অফলাইনে পড়ুন' : '📥 ডাউনলোড করুন';
+                const btnId = `downloadBtn-${book.id}`;
+                return `
+                    <div class="book-card">
+                        <div class="book-icon">${book.icon}</div>
+                        <div class="book-title">${book.name}</div>
+                        <div class="book-subject">${book.subject}</div>
+                        <div class="download-status ${isDownloaded ? 'status-downloaded' : 'status-not-downloaded'}">
+                            ${isDownloaded ? '✓ ডাউনলোড হয়েছে' : '○ ডাউনলোড হয়নি'}
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-online" onclick="readOnline('${book.fileName}', '${book.name}')">
+                                🌐 অনলাইনে পড়ুন
+                            </button>
+                            <button class="btn btn-offline" id="${btnId}" onclick="handleGitHubButtonClick(${book.id}, '${book.fileName}', '${book.name}')">
+                                ${btnText}
+                            </button>
+                        </div>
+                        <div id="progress-${book.id}" style="display: none;">
+                            <div class="progress-container">
+                                <div class="progress-bar"><div class="progress-fill" id="progressFill-${book.id}"></div></div>
+                                <div class="progress-text" id="progressText-${book.id}">ডাউনলোড শুরু...</div>
                             </div>
                         </div>
-                    `;
-                } else {
-                    return `
-                        <div class="book-card">
-                            <div class="book-icon">${book.icon}</div>
-                            <div class="book-title">${book.name}</div>
-                            <div class="book-subject">${book.subject}</div>
-                            <div class="download-status status-na">
-                                📌 গুগল ড্রাইভে হোস্ট করা
-                            </div>
-                            <div class="button-group">
-                                <button class="btn btn-online" onclick="handleDriveButtonClick('${book.fileId}', '${book.name}')">
-                                    🌐 অনলাইনে পড়ুন
-                                </button>
-                                <button class="btn btn-offline-na" disabled>
-                                    📱 অফলাইন অযোগ্য
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                }
+                    </div>
+                `;
             }).join('');
+            
+            // গুগল ড্রাইভের বই রেন্ডার
+            const driveGrid = document.getElementById('driveBooksGrid');
+            driveGrid.innerHTML = driveBooks.map(book => `
+                <div class="book-card">
+                    <div class="book-icon">${book.icon}</div>
+                    <div class="book-title">${book.name}</div>
+                    <div class="book-subject">${book.subject}</div>
+                    <div class="download-status status-na">
+                        📌 গুগল ড্রাইভে হোস্ট করা
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-online" onclick="handleDriveButtonClick('${book.fileId}', '${book.name}')">
+                            🌐 অনলাইনে পড়ুন
+                        </button>
+                        <button class="btn btn-offline-na" disabled>
+                            📱 অফলাইন অযোগ্য
+                        </button>
+                    </div>
+                </div>
+            `).join('');
         }
 
         function closeModal() {
-            document.getElementById('pdfModal').style.display = 'none';
-            document.getElementById('pdfViewer').innerHTML = '';
+            const modal = document.getElementById('pdfModal');
+            const viewerDiv = document.getElementById('pdfViewer');
+            const driveFrame = document.getElementById('driveFrame');
+            modal.style.display = 'none';
+            viewerDiv.innerHTML = '';
+            driveFrame.src = '';
         }
 
         window.onclick = (event) => {
