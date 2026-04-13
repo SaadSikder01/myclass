@@ -102,6 +102,7 @@
             display: none;
             height: 100vh;
             background: #121016;
+            position: relative;
         }
 
         /* Sidebar (Group List) */
@@ -109,13 +110,16 @@
             position: fixed;
             left: 0;
             top: 0;
-            width: 320px;
+            width: 100%;
             height: 100%;
             background: #1e1b24;
-            border-right: 1px solid #2a2730;
-            display: flex;
-            flex-direction: column;
-            z-index: 10;
+            z-index: 100;
+            transition: transform 0.3s ease;
+            transform: translateX(0);
+        }
+
+        .sidebar.hide {
+            transform: translateX(-100%);
         }
 
         .sidebar-header {
@@ -199,6 +203,7 @@
         .group-list {
             flex: 1;
             overflow-y: auto;
+            height: calc(100% - 160px);
         }
 
         .group-item {
@@ -250,20 +255,44 @@
 
         /* Chat Area */
         .chat-area {
-            margin-left: 320px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
             height: 100%;
-            display: flex;
-            flex-direction: column;
             background: #121016;
+            z-index: 101;
+            transition: transform 0.3s ease;
+            transform: translateX(100%);
+        }
+
+        .chat-area.show {
+            transform: translateX(0);
         }
 
         .chat-header {
             background: #1e1b24;
-            padding: 15px 25px;
+            padding: 15px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid #2a2730;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .chat-group-info {
+            flex: 1;
+            margin-left: 10px;
         }
 
         .chat-group-info h3 {
@@ -310,10 +339,11 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
+            height: calc(100% - 140px);
         }
 
         .message {
-            max-width: 70%;
+            max-width: 75%;
             padding: 10px 15px;
             border-radius: 20px;
             position: relative;
@@ -353,11 +383,15 @@
         /* Input Area */
         .input-area {
             background: #1e1b24;
-            padding: 15px 20px;
+            padding: 12px 16px;
             display: flex;
             gap: 12px;
             align-items: center;
             border-top: 1px solid #2a2730;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
         }
 
         .input-area input {
@@ -481,21 +515,19 @@
             font-size: 12px;
         }
 
-        /* Mobile */
-        @media (max-width: 768px) {
+        /* Desktop View */
+        @media (min-width: 769px) {
             .sidebar {
-                transform: translateX(-100%);
-                transition: 0.3s;
-                z-index: 100;
-            }
-            .sidebar.open {
-                transform: translateX(0);
+                width: 320px;
+                transform: translateX(0) !important;
             }
             .chat-area {
-                margin-left: 0;
+                left: 320px;
+                width: calc(100% - 320px);
+                transform: translateX(0) !important;
             }
-            .message {
-                max-width: 85%;
+            .back-btn {
+                display: none;
             }
         }
 
@@ -526,7 +558,7 @@
 
     <!-- Main App -->
     <div id="app" class="app">
-        <!-- Sidebar -->
+        <!-- Sidebar (Group List) -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <h2><i class="fas fa-comments"></i> Pocket Messenger</h2>
@@ -536,7 +568,7 @@
                 </div>
             </div>
             <div class="search-box">
-                <input type="text" id="searchGroups" placeholder="🔍 গ্রুপ খুঁজুন...">
+                <input type="text" id="searchGroups" placeholder="🔍 গ্রুপ খুঁজুন..." onkeyup="searchGroups()">
             </div>
             <div class="groups-header">
                 <h3><i class="fas fa-layer-group"></i> আমার গ্রুপসমূহ</h3>
@@ -548,8 +580,11 @@
         </div>
 
         <!-- Chat Area -->
-        <div class="chat-area">
+        <div class="chat-area" id="chatArea">
             <div class="chat-header">
+                <button class="back-btn" id="backBtn" onclick="closeChat()">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
                 <div class="chat-group-info">
                     <h3 id="currentGroupName">সেলেক্ট একটি গ্রুপ</h3>
                     <p id="currentGroupRole"></p>
@@ -560,9 +595,6 @@
                     </button>
                     <button class="chat-action-btn" onclick="showGroupInfo()" title="গ্রুপ তথ্য">
                         <i class="fas fa-info-circle"></i>
-                    </button>
-                    <button class="chat-action-btn" id="menuToggle" onclick="toggleSidebar()" title="মেনু">
-                        <i class="fas fa-bars"></i>
                     </button>
                 </div>
             </div>
@@ -629,13 +661,14 @@
         let isAdmin = false;
         let jitsiApi = null;
         let messageListener = null;
+        let allGroups = [];
 
         // Auth
         auth.onAuthStateChanged(async (user) => {
             if (user) {
                 currentUser = user;
                 document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('app').style.display = 'flex';
+                document.getElementById('app').style.display = 'block';
                 document.getElementById('userEmail').innerText = user.email;
                 await loadGroups();
             } else {
@@ -655,6 +688,7 @@
                         groupList.push({ id: groupId, ...groupData.val() });
                     }
                 }
+                allGroups = groupList;
                 displayGroups(groupList);
             });
         }
@@ -664,7 +698,7 @@
             container.innerHTML = '';
             groups.forEach(group => {
                 const div = document.createElement('div');
-                div.className = `group-item ${currentGroupId === group.id ? 'active' : ''}`;
+                div.className = 'group-item';
                 div.innerHTML = `
                     <div class="group-avatar">${group.name.charAt(0).toUpperCase()}</div>
                     <div class="group-info">
@@ -675,6 +709,14 @@
                 div.onclick = () => openGroup(group.id, group.name);
                 container.appendChild(div);
             });
+        }
+
+        function searchGroups() {
+            const searchText = document.getElementById('searchGroups').value.toLowerCase();
+            const filtered = allGroups.filter(group => 
+                group.name.toLowerCase().includes(searchText)
+            );
+            displayGroups(filtered);
         }
 
         async function openGroup(groupId, groupName) {
@@ -689,6 +731,18 @@
             document.getElementById('callBtn').disabled = !isAdmin;
             
             loadMessages(groupId);
+            
+            // Show chat area, hide sidebar on mobile
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.add('hide');
+                document.getElementById('chatArea').classList.add('show');
+            }
+        }
+
+        function closeChat() {
+            document.getElementById('chatArea').classList.remove('show');
+            document.getElementById('sidebar').classList.remove('hide');
+            if (messageListener) messageListener.off();
         }
 
         function loadMessages(groupId) {
@@ -866,7 +920,6 @@
         function logout() { if (jitsiApi) jitsiApi.dispose(); auth.signOut(); }
         function showCreateGroupModal() { document.getElementById('createGroupModal').style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
     </script>
 </body>
 </html>
