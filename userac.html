@@ -8,6 +8,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+    <!-- Jitsi Meet SDK -->
+    <script src="https://meet.jit.si/external_api.js"></script>
     <!-- Cloudinary -->
     <script src="https://widget.cloudinary.com/v2.0/global/all.js" type="text/javascript"></script>
     <style>
@@ -95,7 +98,7 @@
             position: fixed;
             left: 0;
             top: 0;
-            width: 320px;
+            width: 350px;
             height: 100vh;
             background: white;
             box-shadow: 2px 0 10px rgba(0,0,0,0.1);
@@ -194,7 +197,7 @@
 
         /* Chat Area */
         .chat-area {
-            margin-left: 320px;
+            margin-left: 350px;
             height: 100vh;
             display: flex;
             flex-direction: column;
@@ -297,76 +300,21 @@
             color: white;
         }
 
-        /* Video Call Modal */
-        .call-modal {
+        /* Jitsi Meet Modal */
+        .jitsi-modal {
             display: none;
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: #1a1a1a;
-            z-index: 1000;
+            background: #000;
+            z-index: 2000;
         }
 
-        .video-container {
-            display: flex;
-            flex-wrap: wrap;
+        #jitsiContainer {
             width: 100%;
             height: 100%;
-            padding: 20px;
-        }
-
-        .local-video-container {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 200px;
-            height: 150px;
-            border-radius: 10px;
-            overflow: hidden;
-            border: 2px solid white;
-            background: #000;
-            z-index: 1001;
-        }
-
-        .remote-video-container {
-            flex: 1;
-            min-width: 300px;
-            background: #000;
-            border-radius: 10px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .call-controls {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 20px;
-            z-index: 1001;
-        }
-
-        .call-control {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-        }
-
-        .end-call {
-            background: red;
-            color: white;
         }
 
         /* Modal */
@@ -378,7 +326,7 @@
             width: 100%;
             height: 100%;
             background: rgba(0,0,0,0.5);
-            z-index: 2000;
+            z-index: 1500;
             align-items: center;
             justify-content: center;
         }
@@ -449,7 +397,7 @@
                     <h3 id="currentGroupName">কোনো গ্রুপ সিলেক্ট করুন</h3>
                     <p id="currentGroupRole" style="font-size:12px;color:#666;"></p>
                 </div>
-                <button class="call-btn" id="callBtn" onclick="startCall()">📞 ভিডিও কল</button>
+                <button class="call-btn" id="callBtn" onclick="startVideoCall()">📞 ভিডিও কল</button>
             </div>
             <div class="messages-area" id="messagesArea"></div>
             <div class="input-area">
@@ -458,6 +406,11 @@
                 <button onclick="uploadImage()">🖼️</button>
             </div>
         </div>
+    </div>
+
+    <!-- Jitsi Meet Modal -->
+    <div id="jitsiModal" class="jitsi-modal">
+        <div id="jitsiContainer"></div>
     </div>
 
     <!-- Create Group Modal -->
@@ -480,24 +433,6 @@
             <h4 style="margin-top:15px;">সদস্যリスト</h4>
             <div id="memberList" style="max-height:200px;overflow-y:auto;"></div>
             <button class="btn-secondary" onclick="closeModal('groupInfoModal')">বন্ধ</button>
-        </div>
-    </div>
-
-    <!-- Video Call Modal -->
-    <div id="callModal" class="call-modal">
-        <div class="video-container" id="videoContainer">
-            <div class="remote-video-container" id="remoteVideoContainer">
-                <video id="remoteVideo" autoplay playsinline></video>
-                <div style="position:absolute;bottom:10px;left:10px;color:white;" id="remoteName">অপেক্ষা করছে...</div>
-            </div>
-        </div>
-        <div class="local-video-container" id="localVideoContainer">
-            <video id="localVideo" autoplay playsinline muted></video>
-        </div>
-        <div class="call-controls">
-            <button class="call-control" onclick="toggleMic()">🎤</button>
-            <button class="call-control" onclick="toggleCamera()">📷</button>
-            <button class="call-control end-call" onclick="endCall()">📞</button>
         </div>
     </div>
 
@@ -527,21 +462,7 @@
         let currentGroupId = null;
         let currentGroup = null;
         let isAdmin = false;
-        
-        // WebRTC Variables
-        let localStream = null;
-        let peerConnection = null;
-        let inCall = false;
-        let callDoc = null;
-        let callData = null;
-
-        // STUN Servers
-        const configuration = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-        };
+        let jitsiApi = null;
 
         // Auth State
         auth.onAuthStateChanged(async (user) => {
@@ -714,160 +635,61 @@
             }
         };
 
-        // WebRTC Video Call Functions
-        async function startCall() {
+        // Jitsi Meet Video Call
+        function startVideoCall() {
             if (!isAdmin) {
                 alert('শুধু অ্যাডমিন কল দিতে পারেন!');
                 return;
             }
             
-            try {
-                // Get user media
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('localVideo').srcObject = localStream;
-                
-                document.getElementById('callModal').style.display = 'block';
-                inCall = true;
-                
-                // Create call document in Firebase
-                callDoc = db.ref(`calls/${currentGroupId}`);
-                await callDoc.set({
-                    active: true,
-                    caller: currentUser.uid,
-                    callerEmail: currentUser.email,
-                    startTime: Date.now()
-                });
-                
-                // Listen for answer
-                callDoc.child('answer').on('value', (snapshot) => {
-                    const answer = snapshot.val();
-                    if (answer && peerConnection) {
-                        const answerDesc = new RTCSessionDescription(answer);
-                        peerConnection.setRemoteDescription(answerDesc);
-                    }
-                });
-                
-                // Listen for ICE candidates
-                callDoc.child('candidates').on('child_added', (snapshot) => {
-                    const candidate = snapshot.val();
-                    if (candidate && peerConnection) {
-                        peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                    }
-                });
-                
-                // Create peer connection
-                createPeerConnection(true);
-                
-                // Create offer
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                await callDoc.child('offer').set(offer);
-                
-                // Listen for remote stream
-                peerConnection.ontrack = (event) => {
-                    document.getElementById('remoteVideo').srcObject = event.streams[0];
-                    document.getElementById('remoteName').innerHTML = 'সংযুক্ত';
-                };
-                
-            } catch (error) {
-                console.error('Error starting call:', error);
-                alert('ক্যামেরা/মাইক্রোফোন অ্যাক্সেস দেওয়া প্রয়োজন');
-                endCall();
-            }
-        }
-
-        async function answerCall() {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('localVideo').srcObject = localStream;
-                document.getElementById('callModal').style.display = 'block';
-                inCall = true;
-                
-                createPeerConnection(false);
-                
-                const offer = await callDoc.child('offer').once('value');
-                const offerDesc = new RTCSessionDescription(offer.val());
-                await peerConnection.setRemoteDescription(offerDesc);
-                
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-                await callDoc.child('answer').set(answer);
-                
-                peerConnection.ontrack = (event) => {
-                    document.getElementById('remoteVideo').srcObject = event.streams[0];
-                    document.getElementById('remoteName').innerHTML = 'সংযুক্ত';
-                };
-                
-            } catch (error) {
-                console.error('Error answering call:', error);
-                endCall();
-            }
-        }
-
-        function createPeerConnection(isCaller) {
-            peerConnection = new RTCPeerConnection(configuration);
+            // Show Jitsi modal
+            document.getElementById('jitsiModal').style.display = 'block';
             
-            // Add local stream tracks
-            localStream.getTracks().forEach(track => {
-                peerConnection.addTrack(track, localStream);
-            });
+            // Create unique room name based on group ID
+            const roomName = `pocket_${currentGroupId}`;
+            const userName = currentUser.email.split('@')[0];
             
-            // Send ICE candidates
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    callDoc.child('candidates').push(event.candidate);
+            const domain = 'meet.jit.si';
+            const options = {
+                roomName: roomName,
+                width: '100%',
+                height: '100%',
+                parentNode: document.getElementById('jitsiContainer'),
+                userInfo: {
+                    displayName: userName,
+                    email: currentUser.email
+                },
+                configOverwrite: {
+                    startWithAudioMuted: false,
+                    startWithVideoMuted: false,
+                    disableDeepLinking: true,
+                    disableInviteFunctions: true
+                },
+                interfaceConfigOverwrite: {
+                    TOOLBAR_BUTTONS: [
+                        'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
+                        'fodeviceselection', 'hangup', 'profile', 'chat', 'recording',
+                        'livestreaming', 'etherpad', 'sharedvideo', 'security', 'settings',
+                        'raisehand', 'videoquality', 'tileview', 'download', 'help'
+                    ]
                 }
             };
-        }
-
-        function toggleMic() {
-            if (localStream) {
-                const audioTrack = localStream.getAudioTracks()[0];
-                audioTrack.enabled = !audioTrack.enabled;
-            }
-        }
-
-        function toggleCamera() {
-            if (localStream) {
-                const videoTrack = localStream.getVideoTracks()[0];
-                videoTrack.enabled = !videoTrack.enabled;
-            }
-        }
-
-        function endCall() {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-            }
             
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
+            jitsiApi = new JitsiMeetExternalAPI(domain, options);
             
-            if (callDoc) {
-                callDoc.remove();
-            }
-            
-            document.getElementById('callModal').style.display = 'none';
-            document.getElementById('remoteVideo').srcObject = null;
-            document.getElementById('localVideo').srcObject = null;
-            inCall = false;
-        }
-
-        // Listen for incoming calls
-        function listenForCalls() {
-            if (!currentGroupId) return;
-            
-            const callRef = db.ref(`calls/${currentGroupId}`);
-            callRef.on('value', (snapshot) => {
-                const call = snapshot.val();
-                if (call && call.active && call.caller !== currentUser.uid && !inCall) {
-                    if (confirm(`${call.callerEmail} ভিডিও কল শুরু করেছেন। গ্রহণ করবেন?`)) {
-                        answerCall();
-                    }
-                }
+            // Handle hangup event
+            jitsiApi.addEventListener('videoConferenceLeft', () => {
+                endVideoCall();
             });
+        }
+        
+        function endVideoCall() {
+            if (jitsiApi) {
+                jitsiApi.dispose();
+                jitsiApi = null;
+            }
+            document.getElementById('jitsiModal').style.display = 'none';
+            document.getElementById('jitsiContainer').innerHTML = '';
         }
 
         // Helper Functions
@@ -888,6 +710,9 @@
         }
 
         function logout() {
+            if (jitsiApi) {
+                jitsiApi.dispose();
+            }
             auth.signOut();
         }
 
@@ -905,12 +730,50 @@
             alert('লিংক কপি করা হয়েছে!');
         }
 
-        // Set interval to listen for calls
-        setInterval(() => {
-            if (currentGroupId) {
-                listenForCalls();
+        // Show group info
+        async function showGroupInfo() {
+            const shareUrl = `${window.location.origin}${window.location.pathname}#join_${currentGroupId}`;
+            document.getElementById('shareLink').innerHTML = shareUrl;
+            document.getElementById('infoGroupName').innerHTML = currentGroup;
+            
+            const members = await db.ref(`groups/${currentGroupId}/members`).once('value');
+            const memberList = members.val() || {};
+            const container = document.getElementById('memberList');
+            container.innerHTML = '';
+            
+            for (let [uid, data] of Object.entries(memberList)) {
+                const isGroupAdmin = uid === (await db.ref(`groups/${currentGroupId}/admin`).once('value')).val();
+                const div = document.createElement('div');
+                div.style.display = 'flex';
+                div.style.justifyContent = 'space-between';
+                div.style.padding = '8px';
+                div.style.borderBottom = '1px solid #eee';
+                div.innerHTML = `
+                    <span>${data.email} ${isGroupAdmin ? '👑' : ''}</span>
+                    ${isAdmin && uid !== currentUser.uid ? `<button onclick="kickMember('${uid}')" style="background:red;color:white;border:none;padding:2px 10px;border-radius:5px;">কিক</button>` : ''}
+                `;
+                container.appendChild(div);
             }
-        }, 2000);
+            
+            document.getElementById('groupInfoModal').style.display = 'flex';
+        }
+
+        window.kickMember = async function(uid) {
+            if (!isAdmin) return;
+            await db.ref(`groups/${currentGroupId}/members/${uid}`).remove();
+            await db.ref(`userGroups/${uid}/${currentGroupId}`).remove();
+            showGroupInfo();
+        };
+
+        // Add info button to chat header
+        const chatHeader = document.querySelector('.chat-header');
+        const infoBtn = document.createElement('button');
+        infoBtn.innerHTML = 'ℹ️';
+        infoBtn.className = 'call-btn';
+        infoBtn.style.marginLeft = '10px';
+        infoBtn.style.background = '#666';
+        infoBtn.onclick = showGroupInfo;
+        document.querySelector('.chat-header div:first-child').after(infoBtn);
     </script>
 </body>
 </html>
