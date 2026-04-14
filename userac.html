@@ -8,7 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    <!-- Daily.co SDK -->
+    <!-- Daily.co Prebuilt -->
     <script src="https://unpkg.com/@daily-co/daily-js"></script>
     <!-- Cloudinary -->
     <script src="https://widget.cloudinary.com/v2.0/global/all.js"></script>
@@ -21,7 +21,6 @@
         .login-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 40px; padding: 40px 30px; width: 90%; max-width: 380px; box-shadow: 0 25px 50px rgba(0,0,0,0.3); }
         .login-card h1 { text-align: center; margin-bottom: 30px; font-size: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .login-card input { width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #e1e5e9; border-radius: 25px; font-size: 16px; background: #f8f9fa; }
-        .login-card input:focus { border-color: #667eea; outline: none; }
         .login-card button { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: pointer; }
         .btn-login { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .btn-register { background: #f0f2f5; color: #333; }
@@ -66,7 +65,7 @@
         .input-btn { width: 44px; height: 44px; border: none; border-radius: 50%; cursor: pointer; font-size: 20px; background: #2a2730; color: white; flex-shrink: 0; }
         .send-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
         .call-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; }
-        #dailyContainer { width: 100%; height: 100%; }
+        #dailyFrame { width: 100%; height: 100%; border: none; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1500; align-items: center; justify-content: center; }
         .modal-content { background: #1e1b24; border-radius: 30px; padding: 25px; width: 90%; max-width: 380px; color: white; }
         .modal-content input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #2a2730; border-radius: 20px; background: #2a2730; color: white; }
@@ -153,8 +152,11 @@
             <button class="btn-register" onclick="closeModal('groupInfoModal')">বন্ধ</button>
         </div>
     </div>
+
+    <!-- Daily.co Call Modal -->
     <div id="callModal" class="call-modal">
-        <div id="dailyContainer"></div>
+        <iframe id="dailyFrame" allow="camera; microphone; display-capture"></iframe>
+        <button style="position:absolute; bottom:20px; right:20px; background:red; color:white; border:none; padding:10px 20px; border-radius:25px; cursor:pointer; z-index:2001;" onclick="endVideoCall()">কল বন্ধ করুন</button>
     </div>
 
     <script>
@@ -181,9 +183,16 @@
         let currentGroupId = null;
         let currentGroup = null;
         let isAdmin = false;
-        let dailyCallFrame = null;
         let messageListener = null;
         let allGroups = [];
+        let dailyFrame = null;
+        let dailyCall = null;
+
+        // Daily.co room name (unique per group)
+        function getDailyRoomUrl() {
+            // Daily.co free rooms are public; we use a unique name per group
+            return `https://pocket-messenger-${currentGroupId}.daily.co`;
+        }
 
         // Firebase Auth
         auth.onAuthStateChanged(async (user) => {
@@ -346,54 +355,34 @@
             }
         };
 
-        // Daily.co Video Call - No authentication required!
+        // Daily.co Video Call
         function startVideoCall() {
             if (!isAdmin) {
                 alert('শুধু অ্যাডমিন কল দিতে পারেন!');
                 return;
             }
-            
-            // Create a unique room name based on group ID
-            const roomUrl = `https://pocket-messenger.daily.co/${currentGroupId}`;
-            
-            // Show modal
+            const roomUrl = getDailyRoomUrl();
+            const iframe = document.getElementById('dailyFrame');
+            iframe.src = roomUrl;
             document.getElementById('callModal').style.display = 'block';
             
-            // Create Daily.co call frame
-            dailyCallFrame = DailyIframe.createFrame(document.getElementById('dailyContainer'), {
-                showLeaveButton: true,
-                showFullscreenButton: true,
-                iframeStyle: {
-                    width: '100%',
-                    height: '100%',
-                    border: '0'
-                },
-                showUserNameChangeUI: true,
-                userName: currentUser.email.split('@')[0]
-            });
-            
-            // Join the call
-            dailyCallFrame.join({ url: roomUrl });
-            
-            // Handle leaving the call
-            dailyCallFrame.on('left-meeting', () => {
-                endVideoCall();
-            });
-            
-            dailyCallFrame.on('error', (e) => {
-                console.error('Daily.co error:', e);
-                alert('কল শুরু করতে ব্যর্থ হয়েছে। নেটওয়ার্ক চেক করুন।');
-                endVideoCall();
-            });
+            // Initialize Daily iframe
+            dailyCall = DailyIframe.createFrame(iframe, {
+        iframeStyle: { width: '100%', height: '100%' },
+        showLeaveButton: false,
+        showFullscreenButton: true,
+        });
+            dailyCall.join({ url: roomUrl, userName: currentUser.email.split('@')[0] });
         }
-        
+
         function endVideoCall() {
-            if (dailyCallFrame) {
-                dailyCallFrame.destroy();
-                dailyCallFrame = null;
+            if (dailyCall) {
+                dailyCall.leave();
+                dailyCall.destroy();
+                dailyCall = null;
             }
             document.getElementById('callModal').style.display = 'none';
-            document.getElementById('dailyContainer').innerHTML = '';
+            document.getElementById('dailyFrame').src = '';
         }
 
         async function showGroupInfo() {
@@ -447,10 +436,7 @@
             }
         }
 
-        function logout() { 
-            if (dailyCallFrame) dailyCallFrame.destroy(); 
-            auth.signOut(); 
-        }
+        function logout() { if (dailyCall) endVideoCall(); auth.signOut(); }
         function showCreateGroupModal() { document.getElementById('createGroupModal').style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
