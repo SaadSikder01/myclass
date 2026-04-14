@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Pocket Messenger - গ্রুপ চ্যাট ও ভিডিও কল (Daily.co)</title>
+    <title>Pocket Messenger - ভিডিও কল ও চ্যাট</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    <!-- Daily.co SDK -->
-    <script crossorigin src="https://unpkg.com/@daily-co/daily-js"></script>
+    <!-- Jitsi Meet -->
+    <script src="https://meet.jit.si/external_api.js"></script>
     <!-- Cloudinary -->
     <script src="https://widget.cloudinary.com/v2.0/global/all.js"></script>
+    <!-- jsPDF for JWT generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/11.1.0/jsrsasign-all-min.js"></script>
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -142,6 +144,10 @@
         .user-email {
             font-size: 12px;
             opacity: 0.9;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 180px;
         }
 
         .logout-btn {
@@ -219,11 +225,6 @@
             background: #2a2730;
         }
 
-        .group-item.active {
-            background: #2a2730;
-            border-left: 3px solid #667eea;
-        }
-
         .group-avatar {
             width: 50px;
             height: 50px;
@@ -236,21 +237,29 @@
             font-size: 22px;
             color: white;
             margin-right: 15px;
+            flex-shrink: 0;
         }
 
         .group-info {
             flex: 1;
+            min-width: 0;
         }
 
         .group-name {
             font-weight: 600;
             color: white;
             margin-bottom: 5px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .group-last-msg {
             font-size: 12px;
             color: #888;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* Chat Area */
@@ -293,11 +302,15 @@
         .chat-group-info {
             flex: 1;
             margin-left: 10px;
+            min-width: 0;
         }
 
         .chat-group-info h3 {
             color: white;
             font-size: 18px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .chat-group-info p {
@@ -308,7 +321,8 @@
 
         .chat-actions {
             display: flex;
-            gap: 15px;
+            gap: 10px;
+            flex-shrink: 0;
         }
 
         .chat-action-btn {
@@ -369,7 +383,7 @@
 
         .message-image {
             max-width: 200px;
-            border-radius: 10px;
+            border-radius: 15px;
             margin-top: 5px;
             cursor: pointer;
         }
@@ -418,14 +432,15 @@
             background: #2a2730;
             color: white;
             transition: 0.2s;
+            flex-shrink: 0;
         }
 
         .send-btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
-        /* Daily.co Video Call Modal */
-        .daily-modal {
+        /* Jitsi Modal */
+        .jitsi-modal {
             display: none;
             position: fixed;
             top: 0;
@@ -436,7 +451,7 @@
             z-index: 2000;
         }
 
-        #dailyContainer {
+        #jitsiContainer {
             width: 100%;
             height: 100%;
         }
@@ -630,17 +645,12 @@
         </div>
     </div>
 
-    <!-- Daily.co Video Call Modal -->
-    <div id="dailyModal" class="daily-modal">
-        <div id="dailyContainer"></div>
+    <!-- Jitsi Modal -->
+    <div id="jitsiModal" class="jitsi-modal">
+        <div id="jitsiContainer"></div>
     </div>
 
     <script>
-        // ==================== 🔧 আপনার এখানে Daily.co তথ্য বসান ====================
-        const DAILY_API_KEY = "c9b2b2cf5fb4fc868a4f84006cc906e040a59f1d8f56d7a75019191507b10b91";      // আপনার API Key দিন
-        const DAILY_SUBDOMAIN = "myclassbd.daily.co";                // আপনার Subdomain দিন
-        // ========================================================================
-
         // Firebase Config
         const firebaseConfig = {
             apiKey: "AIzaSyDTxzgfZ8IuPpqp4Q20cE8JZvif32pDhgc",
@@ -651,6 +661,38 @@
             appId: "1:716703687515:web:b9a11736e7f58e071c307e",
             databaseURL: "https://my-class-46989-default-rtdb.firebaseio.com/"
         };
+
+        // JaaS Config
+        const JAAS_APP_ID = "vpaas-magic-cookie-8139d4abd07e47278d3dce5cad1ce7ba";
+        const JAAS_API_KEY = "vpaas-magic-cookie-8139d4abd07e47278d3dce5cad1ce7ba/a97dc4";
+        const JAAS_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC18wwgXdbjKLEO
+VJ6DV2YA0bHE7eCT13pWqL/JxyTpI1UoFbFPF151HrVtx/5Y8TEzfOMUip2XAOg1
+7aD5A90ujIMpvtICvpFGdmj1za0WaRHyjyLFHMyrQWYD4DI8ZYjKbe1RBqI0IQqQ
+8bb6pkctsgvFQD6XJ4xJcwl1EbnEcy/PN2fOZBUyhJXWZQLjjerp6nC9c6g56l+I
+VcF6V3fcrq/aiRxtSEnj+Tbl3c2PPHopUqoUsjWcYTVAXG9XJ4AAZ/RgmrQINGye
+C8EMjgLeor/ZiXPgceFQAFfcOfuJBH9154tSVCUwTi4CacAK5vlFjeNnW4IrQoDD
+oKi8WHmtAgMBAAECggEAVajVPq+vKUbRBJQmBGOzLBONA8+R+Uhq2j2b/Vz6LaBq
+yPJdhYTU/YK1m7eaMTlsFndnWRZhVuQgbrMvI80D5pRUc+TYbl5VerzocUChinlw
+76cfkXkbikzBwHVecTzEB7l1Dr52wuADX3XM1XhO7l5yWC0Eypjd3P6Bp1HvCWL+
+GC/swzywJXdpMU8xhpyYRVztbJ8sTUAZ/zlMS1yZwT0oYTKlOH/MtR3j/B7Z66zt
+FPvYUeTuQTMNca+avTUKvVZpPjOIICtY2WS2Cl9TTkrls3WtJ4mfmv8xI3Km8VxJ
+wycHhjT4QgClUVGkFKulMPAv8B9+Sck2mW08fcZ2AQKBgQDZoQrJ+wkMt8zPvhv9
+intIaQByLC7rmJhBjtG0NCf6VH5KuxlkrIl8DN5t6HrFanVrWptilZPR9NOr6gRv
+FwksRNTZwV4E1VSHZapMbYe9Ue7lNsj84BcVwk0TsTn711YnKOMMES2NcEji0zNy
+380ttfLyr5SmijW2x6qu7v+qwQKBgQDWB48pfXOZB+fby1FYI3Bm2PQPg5LBZ+J1
+3RQ+WsWGzzz6BTV8J0GflZoe2TiRE0e5P4QkOCJ0Ia0LLnFBAt7rt3MfOusN6989
+YSgPhROIfn8ElUhM8P+d3UNi8e8aQuurBypozwtbkjaEmdbKK6aQy7cCtBj6yFUv
+yOsOs9ml7QKBgEp65/NaO62jla+fU3sBEtIkRWfNoT02Gx2MoE4471mn4xT2VWlz
+9xWCXfllb+byWT8lYjpqEI3xaSPT0jKmwpfo8qOXnvKug+BWteK0NZlgWg8OIdkR
+ZDUpKzHLHJoJB04dmx69Hkbin78pItl0qIa1V3EhEBGzCVEFom9+EffBAoGBAINs
+wuE0Uq6OpzZVRA7+PAA7iqqYHZ67ntjHN64OaSqdyRCx8CTbqjVHVQtKUazsDOfY
+89iVy7pKD4tFKnBERgSycnOj50B2LW/wX/wfuF3hZze2P15Xwm76tm1kqHEU1MgB
+r24KbSv+vZFxMe6VHUPeg/OaCZi9OWoNUyGFGMoFAoGAPhtEhAZvpkK16mj6Xf/a
+nEowb2ub9Q2+spRWDgUMyuNXNYuUOMvtFNHbb2WeNpha3+nSL+kuND2Vhj+IZPp3
+N7ZjSoZFyzvOMqKI/BEqt05hJW7f8HSYLAE5zZObDOPunKwmbmLUgGrJfeffFb+x
+tNUsb2FdcYFfUDV/9ErxP2I=
+-----END PRIVATE KEY-----`;
 
         // Cloudinary
         const CLOUD_NAME = "debga1ysk";
@@ -664,9 +706,46 @@
         let currentGroupId = null;
         let currentGroup = null;
         let isAdmin = false;
+        let jitsiApi = null;
         let messageListener = null;
         let allGroups = [];
-        let dailyCallFrame = null;
+
+        // JWT Generation Function
+        function generateJwtToken(roomName, userEmail) {
+            const header = { alg: "RS256", typ: "JWT", kid: JAAS_API_KEY };
+            const now = Math.floor(Date.now() / 1000);
+            
+            const payload = {
+                aud: "jitsi",
+                iss: JAAS_API_KEY,
+                sub: "meet.8x8.vc",
+                room: `${JAAS_APP_ID}/${roomName}`,
+                context: {
+                    user: {
+                        name: userEmail.split('@')[0],
+                        email: userEmail,
+                        id: userEmail,
+                        avatar: "",
+                        moderator: true
+                    },
+                    features: {
+                        recording: false,
+                        livestreaming: false,
+                        transcription: false,
+                        outbound_call: false
+                    }
+                },
+                exp: now + 24 * 60 * 60,
+                nbf: now - 10,
+                iat: now
+            };
+            
+            const sHeader = JSON.stringify(header);
+            const sPayload = JSON.stringify(payload);
+            
+            const token = KJUR.jws.JWS.sign("RS256", sHeader, sPayload, JAAS_PRIVATE_KEY);
+            return token;
+        }
 
         // Auth
         auth.onAuthStateChanged(async (user) => {
@@ -842,74 +921,48 @@
             }
         };
 
-        // ==================== Daily.co Video Call Functions ====================
-        async function startVideoCall() {
-            if (!isAdmin) {
-                alert('শুধু অ্যাডমিন কল দিতে পারেন!');
-                return;
+        function startVideoCall() {
+            if (!isAdmin) { 
+                alert('শুধু অ্যাডমিন কল দিতে পারেন!'); 
+                return; 
             }
-
-            try {
-                // 1. Daily.co-তে একটি নতুন রুম তৈরি করুন
-                const roomName = `pocket-${currentGroupId}-${Date.now()}`;
-                const createRoomResponse = await fetch('https://api.daily.co/v1/rooms/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${DAILY_API_KEY}`
-                    },
-                    body: JSON.stringify({
-                        name: roomName,
-                        privacy: "public",
-                        properties: {
-                            exp: Math.floor(Date.now() / 1000) + 3600  // 1 ঘন্টা পর expire হবে
-                        }
-                    })
-                });
-
-                if (!createRoomResponse.ok) {
-                    throw new Error('রুম তৈরি করতে ব্যর্থ হয়েছে');
-                }
-
-                const roomData = await createRoomResponse.json();
-                const roomUrl = roomData.url;  // যেমন: https://pocketclass.daily.co/pocket-xxx
-
-                // 2. মডাল দেখান এবং কল শুরু করুন
-                document.getElementById('dailyModal').style.display = 'block';
-                
-                // Daily.co ফ্রেম তৈরি করুন
-                dailyCallFrame = window.DailyIframe.createFrame({
-                    showLeaveButton: true,
-                    showFullscreenButton: true,
-                    iframeStyle: {
-                        width: '100%',
-                        height: '100%',
-                        border: '0'
-                    }
-                });
-                
-                dailyCallFrame.join({ url: roomUrl });
-                
-                // কল বন্ধ হলে মডাল বন্ধ করুন
-                dailyCallFrame.on('left-meeting', () => {
-                    endVideoCall();
-                });
-
-            } catch (error) {
-                console.error('ভিডিও কল শুরু করতে ব্যর্থ:', error);
-                alert('ভিডিও কল শুরু করতে ব্যর্থ হয়েছে। নেটওয়ার্ক চেক করুন।');
-            }
+            
+            document.getElementById('jitsiModal').style.display = 'block';
+            const roomName = `pocket_${currentGroupId}`;
+            const userName = currentUser.email.split('@')[0];
+            
+            const jwtToken = generateJwtToken(roomName, currentUser.email);
+            
+            const domain = '8x8.vc';
+            const options = {
+                roomName: `${JAAS_APP_ID}/${roomName}`,
+                width: '100%',
+                height: '100%',
+                parentNode: document.getElementById('jitsiContainer'),
+                userInfo: { 
+                    displayName: userName, 
+                    email: currentUser.email 
+                },
+                configOverwrite: { 
+                    startWithAudioMuted: false, 
+                    startWithVideoMuted: false,
+                    disableDeepLinking: true
+                },
+                jwt: jwtToken
+            };
+            
+            jitsiApi = new JitsiMeetExternalAPI(domain, options);
+            jitsiApi.addEventListener('videoConferenceLeft', () => endVideoCall());
         }
 
         function endVideoCall() {
-            if (dailyCallFrame) {
-                dailyCallFrame.destroy();
-                dailyCallFrame = null;
+            if (jitsiApi) { 
+                jitsiApi.dispose(); 
+                jitsiApi = null; 
             }
-            document.getElementById('dailyModal').style.display = 'none';
-            document.getElementById('dailyContainer').innerHTML = '';
+            document.getElementById('jitsiModal').style.display = 'none';
+            document.getElementById('jitsiContainer').innerHTML = '';
         }
-        // ========================================================================
 
         async function showGroupInfo() {
             const shareUrl = `${window.location.origin}${window.location.pathname}#join_${currentGroupId}`;
@@ -965,15 +1018,27 @@
         }
 
         function logout() { 
-            if (dailyCallFrame) {
-                dailyCallFrame.destroy();
-                dailyCallFrame = null;
-            }
+            if (jitsiApi) jitsiApi.dispose(); 
             auth.signOut(); 
         }
         
-        function showCreateGroupModal() { document.getElementById('createGroupModal').style.display = 'flex'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function showCreateGroupModal() { 
+            document.getElementById('createGroupModal').style.display = 'flex'; 
+        }
+        
+        function closeModal(id) { 
+            document.getElementById(id).style.display = 'none'; 
+        }
+
+        // Handle URL hash for joining groups
+        window.addEventListener('load', () => {
+            if (window.location.hash && window.location.hash.startsWith('#join_')) {
+                const groupId = window.location.hash.replace('#join_', '');
+                if (currentUser) {
+                    setTimeout(() => joinGroup(groupId), 1000);
+                }
+            }
+        });
     </script>
 </body>
 </html>
