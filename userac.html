@@ -3,22 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Pocket Messenger</title>
-    <!-- Firebase SDK -->
+    <title>Pocket Messenger - ভিডিও কল</title>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    <!-- Daily.co Prebuilt (simpler) -->
-    <script src="https://unpkg.com/@daily-co/daily-js@0.45.0/daily-js.min.js"></script>
-    <!-- Cloudinary -->
     <script src="https://widget.cloudinary.com/v2.0/global/all.js"></script>
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a1a; height: 100vh; overflow: hidden; }
         .login-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .login-card { background: rgba(255,255,255,0.95); border-radius: 40px; padding: 40px 30px; width: 90%; max-width: 380px; box-shadow: 0 25px 50px rgba(0,0,0,0.3); }
+        .login-card { background: rgba(255,255,255,0.95); border-radius: 40px; padding: 40px 30px; width: 90%; max-width: 380px; }
         .login-card h1 { text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .login-card input { width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #e1e5e9; border-radius: 25px; font-size: 16px; }
         .login-card button { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: pointer; }
@@ -62,8 +57,13 @@
         .input-area input { flex: 1; padding: 12px 18px; border: none; border-radius: 25px; background: #2a2730; color: white; }
         .input-btn { width: 44px; height: 44px; border: none; border-radius: 50%; cursor: pointer; font-size: 20px; background: #2a2730; color: white; flex-shrink: 0; }
         .send-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .call-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; }
-        #dailyFrame { width: 100%; height: 100%; border: none; }
+        .call-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; flex-direction: column; }
+        .video-row { display: flex; flex: 1; gap: 10px; padding: 10px; }
+        .video-box { flex: 1; background: #000; border-radius: 10px; overflow: hidden; position: relative; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .call-controls { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; z-index: 2001; }
+        .call-controls button { width: 60px; height: 60px; border-radius: 50%; margin: 0 10px; border: none; font-size: 24px; cursor: pointer; }
+        .end-call { background: red; color: white; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1500; align-items: center; justify-content: center; }
         .modal-content { background: #1e1b24; border-radius: 30px; padding: 25px; width: 90%; max-width: 380px; color: white; }
         .modal-content input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #2a2730; border-radius: 20px; background: #2a2730; color: white; }
@@ -112,7 +112,7 @@
                     <p id="currentGroupRole"></p>
                 </div>
                 <div class="chat-actions">
-                    <button class="chat-action-btn" id="callBtn" onclick="startVideoCall()"><i class="fas fa-video"></i></button>
+                    <button class="chat-action-btn" id="callBtn" onclick="startCall()"><i class="fas fa-video"></i></button>
                     <button class="chat-action-btn" onclick="showGroupInfo()"><i class="fas fa-info-circle"></i></button>
                 </div>
             </div>
@@ -144,13 +144,28 @@
             <button class="btn-register" onclick="closeModal('groupInfoModal')">বন্ধ</button>
         </div>
     </div>
+
+    <!-- Video Call Modal (WebRTC) -->
     <div id="callModal" class="call-modal">
-        <iframe id="dailyFrame" allow="camera; microphone; display-capture"></iframe>
-        <button style="position:absolute; bottom:20px; right:20px; background:red; color:white; border:none; padding:10px 20px; border-radius:25px; cursor:pointer; z-index:2001;" onclick="endVideoCall()">কল বন্ধ করুন</button>
+        <div class="video-row">
+            <div class="video-box">
+                <video id="localVideo" autoplay muted playsinline></video>
+                <div style="position:absolute; bottom:10px; left:10px; color:white; background:rgba(0,0,0,0.5); padding:2px 8px; border-radius:10px;">আপনি</div>
+            </div>
+            <div class="video-box">
+                <video id="remoteVideo" autoplay playsinline></video>
+                <div style="position:absolute; bottom:10px; left:10px; color:white; background:rgba(0,0,0,0.5); padding:2px 8px; border-radius:10px;">অন্য প্রান্ত</div>
+            </div>
+        </div>
+        <div class="call-controls">
+            <button onclick="toggleMic()"><i class="fas fa-microphone"></i></button>
+            <button onclick="toggleCamera()"><i class="fas fa-video"></i></button>
+            <button class="end-call" onclick="endCall()"><i class="fas fa-phone-slash"></i></button>
+        </div>
     </div>
 
     <script>
-        // Firebase Config
+        // Firebase Config (আপনার দেওয়া)
         const firebaseConfig = {
             apiKey: "AIzaSyDTxzgfZ8IuPpqp4Q20cE8JZvif32pDhgc",
             authDomain: "my-class-46989.firebaseapp.com",
@@ -168,8 +183,16 @@
         const db = firebase.database();
 
         let currentUser = null, currentGroupId = null, currentGroup = null, isAdmin = false;
-        let messageListener = null, allGroups = [], dailyCall = null;
+        let messageListener = null, allGroups = [];
 
+        // WebRTC variables
+        let localStream = null;
+        let peerConnection = null;
+        let callDoc = null;
+        let isCallActive = false;
+        const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        // Auth
         auth.onAuthStateChanged(async (user) => {
             if (user) {
                 currentUser = user;
@@ -300,22 +323,160 @@
             }
         };
 
-        function startVideoCall() {
+        // WebRTC Video Call Functions
+        async function startCall() {
             if (!isAdmin) { alert('শুধু অ্যাডমিন কল দিতে পারেন!'); return; }
-            const roomUrl = `https://pocket-messenger-${currentGroupId}.daily.co`;
-            const iframe = document.getElementById('dailyFrame');
-            iframe.src = roomUrl;
-            document.getElementById('callModal').style.display = 'block';
-            // Initialize Daily.co call
-            dailyCall = DailyIframe.createFrame(iframe, { iframeStyle: { width: '100%', height: '100%' }, showLeaveButton: false });
-            dailyCall.join({ url: roomUrl, userName: currentUser.email.split('@')[0] }).catch(e => console.error(e));
+            if (isCallActive) return;
+            
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('callModal').style.display = 'flex';
+                isCallActive = true;
+                
+                // Create a call document in Firebase
+                callDoc = db.ref(`calls/${currentGroupId}`);
+                await callDoc.set({
+                    callerId: currentUser.uid,
+                    callerName: currentUser.email,
+                    active: true,
+                    startTime: Date.now()
+                });
+                
+                // Listen for answer
+                callDoc.child('answer').on('value', async (snapshot) => {
+                    const answer = snapshot.val();
+                    if (answer && peerConnection) {
+                        const answerDesc = new RTCSessionDescription(answer);
+                        await peerConnection.setRemoteDescription(answerDesc);
+                    }
+                });
+                
+                // Listen for ICE candidates
+                callDoc.child('candidates').on('child_added', async (snapshot) => {
+                    const candidate = snapshot.val();
+                    if (candidate && peerConnection) {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                    }
+                });
+                
+                // Create peer connection
+                createPeerConnection(true);
+                
+                // Create offer
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                await callDoc.child('offer').set(offer);
+                
+                // Listen for remote stream
+                peerConnection.ontrack = (event) => {
+                    document.getElementById('remoteVideo').srcObject = event.streams[0];
+                };
+                
+                // Handle call end
+                callDoc.on('value', (snapshot) => {
+                    if (!snapshot.val() || !snapshot.val().active) {
+                        endCall();
+                    }
+                });
+                
+            } catch (err) {
+                console.error(err);
+                alert('ক্যামেরা/মাইক্রোফোন অ্যাক্সেস প্রয়োজন');
+                endCall();
+            }
         }
 
-        function endVideoCall() {
-            if (dailyCall) { dailyCall.leave(); dailyCall.destroy(); dailyCall = null; }
-            document.getElementById('callModal').style.display = 'none';
-            document.getElementById('dailyFrame').src = '';
+        async function answerCall() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('callModal').style.display = 'flex';
+                isCallActive = true;
+                
+                createPeerConnection(false);
+                
+                const offerSnap = await callDoc.child('offer').once('value');
+                const offer = offerSnap.val();
+                if (offer) {
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    await callDoc.child('answer').set(answer);
+                }
+                
+                peerConnection.ontrack = (event) => {
+                    document.getElementById('remoteVideo').srcObject = event.streams[0];
+                };
+                
+            } catch (err) {
+                console.error(err);
+                alert('ক্যামেরা/মাইক্রোফোন অ্যাক্সেস প্রয়োজন');
+                endCall();
+            }
         }
+
+        function createPeerConnection(isCaller) {
+            peerConnection = new RTCPeerConnection(configuration);
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate && callDoc) {
+                    callDoc.child('candidates').push(event.candidate);
+                }
+            };
+        }
+
+        function toggleMic() {
+            if (localStream) {
+                const audioTrack = localStream.getAudioTracks()[0];
+                audioTrack.enabled = !audioTrack.enabled;
+            }
+        }
+        
+        function toggleCamera() {
+            if (localStream) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                videoTrack.enabled = !videoTrack.enabled;
+            }
+        }
+
+        function endCall() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (callDoc) {
+                callDoc.remove();
+                callDoc = null;
+            }
+            document.getElementById('callModal').style.display = 'none';
+            document.getElementById('localVideo').srcObject = null;
+            document.getElementById('remoteVideo').srcObject = null;
+            isCallActive = false;
+        }
+
+        // Listen for incoming calls
+        function listenForCalls() {
+            if (!currentGroupId) return;
+            const callRef = db.ref(`calls/${currentGroupId}`);
+            callRef.on('value', (snapshot) => {
+                const call = snapshot.val();
+                if (call && call.active && call.callerId !== currentUser.uid && !isCallActive) {
+                    if (confirm(`${call.callerName} ভিডিও কল শুরু করেছেন। গ্রহণ করবেন?`)) {
+                        answerCall();
+                    } else {
+                        callRef.remove();
+                    }
+                }
+            });
+        }
+        setInterval(() => { if(currentGroupId) listenForCalls(); }, 2000);
 
         async function showGroupInfo() {
             const shareUrl = `${window.location.origin}${window.location.pathname}#join_${currentGroupId}`;
@@ -344,7 +505,7 @@
         function copyShareLink() { navigator.clipboard.writeText(document.getElementById('shareLink').innerText); alert('লিংক কপি করা হয়েছে!'); }
         function login() { auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value).catch(e => alert(e.message)); }
         function showRegister() { const e = prompt('ইমেইল:'), p = prompt('পাসওয়ার্ড:'); if(e && p) auth.createUserWithEmailAndPassword(e,p).then(()=>alert('অ্যাকাউন্ট তৈরি সফল! লগইন করুন.')).catch(e=>alert(e.message)); }
-        function logout() { if(dailyCall) endVideoCall(); auth.signOut(); }
+        function logout() { if(isCallActive) endCall(); auth.signOut(); }
         function showCreateGroupModal() { document.getElementById('createGroupModal').style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         window.addEventListener('load', () => { if(window.location.hash && window.location.hash.startsWith('#join_') && currentUser) setTimeout(() => joinGroup(window.location.hash.replace('#join_','')), 1000); });
