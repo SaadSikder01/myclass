@@ -3,24 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Pocket Messenger - ভিডিও কল ও চ্যাট</title>
+    <title>Pocket Messenger</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    <!-- Daily.co Prebuilt -->
-    <script src="https://unpkg.com/@daily-co/daily-js"></script>
+    <!-- Daily.co Prebuilt (simpler) -->
+    <script src="https://unpkg.com/@daily-co/daily-js@0.45.0/daily-js.min.js"></script>
     <!-- Cloudinary -->
     <script src="https://widget.cloudinary.com/v2.0/global/all.js"></script>
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #1a1a1a; height: 100vh; overflow: hidden; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a1a; height: 100vh; overflow: hidden; }
         .login-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .login-card { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 40px; padding: 40px 30px; width: 90%; max-width: 380px; box-shadow: 0 25px 50px rgba(0,0,0,0.3); }
-        .login-card h1 { text-align: center; margin-bottom: 30px; font-size: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .login-card input { width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #e1e5e9; border-radius: 25px; font-size: 16px; background: #f8f9fa; }
+        .login-card { background: rgba(255,255,255,0.95); border-radius: 40px; padding: 40px 30px; width: 90%; max-width: 380px; box-shadow: 0 25px 50px rgba(0,0,0,0.3); }
+        .login-card h1 { text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .login-card input { width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #e1e5e9; border-radius: 25px; font-size: 16px; }
         .login-card button { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: pointer; }
         .btn-login { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .btn-register { background: #f0f2f5; color: #333; }
@@ -28,31 +28,29 @@
         .sidebar { position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: #1e1b24; z-index: 100; transition: transform 0.3s ease; transform: translateX(0); }
         .sidebar.hide { transform: translateX(-100%); }
         .sidebar-header { padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .sidebar-header h2 { font-size: 20px; margin-bottom: 10px; }
-        .user-row { display: flex; justify-content: space-between; align-items: center; }
-        .user-email { font-size: 12px; opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
-        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 12px; }
+        .user-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+        .user-email { font-size: 12px; opacity: 0.9; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+        .logout-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 14px; border-radius: 20px; cursor: pointer; }
         .search-box { padding: 15px; border-bottom: 1px solid #2a2730; }
-        .search-box input { width: 100%; padding: 10px 15px; border: none; border-radius: 25px; background: #2a2730; color: white; font-size: 14px; }
+        .search-box input { width: 100%; padding: 10px 15px; border: none; border-radius: 25px; background: #2a2730; color: white; }
         .groups-header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2730; }
-        .groups-header h3 { color: #aaa; font-size: 14px; font-weight: 500; }
-        .create-group-icon { background: #667eea; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; font-size: 18px; }
+        .create-group-icon { background: #667eea; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; }
         .group-list { flex: 1; overflow-y: auto; height: calc(100% - 160px); }
-        .group-item { display: flex; align-items: center; padding: 15px 20px; cursor: pointer; transition: 0.2s; border-bottom: 1px solid #2a2730; }
+        .group-item { display: flex; align-items: center; padding: 15px 20px; cursor: pointer; border-bottom: 1px solid #2a2730; }
         .group-item:hover { background: #2a2730; }
         .group-avatar { width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 22px; color: white; margin-right: 15px; flex-shrink: 0; }
         .group-info { flex: 1; min-width: 0; }
-        .group-name { font-weight: 600; color: white; margin-bottom: 5px; }
+        .group-name { color: white; font-weight: 600; margin-bottom: 5px; }
         .group-last-msg { font-size: 12px; color: #888; }
         .chat-area { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #121016; z-index: 101; transition: transform 0.3s ease; transform: translateX(100%); }
         .chat-area.show { transform: translateX(0); }
-        .chat-header { background: #1e1b24; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2730; }
-        .back-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 8px; display: flex; align-items: center; }
-        .chat-group-info { flex: 1; margin-left: 10px; min-width: 0; }
+        .chat-header { background: #1e1b24; padding: 15px 20px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #2a2730; }
+        .back-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
+        .chat-group-info { flex: 1; }
         .chat-group-info h3 { color: white; font-size: 18px; }
-        .chat-group-info p { color: #888; font-size: 12px; margin-top: 4px; }
-        .chat-actions { display: flex; gap: 10px; flex-shrink: 0; }
-        .chat-action-btn { background: none; border: none; color: white; font-size: 22px; cursor: pointer; padding: 8px; border-radius: 50%; transition: 0.2s; }
+        .chat-group-info p { color: #888; font-size: 12px; }
+        .chat-actions { display: flex; gap: 10px; }
+        .chat-action-btn { background: none; border: none; color: white; font-size: 22px; cursor: pointer; padding: 8px; border-radius: 50%; }
         .chat-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .messages-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 8px; height: calc(100% - 140px); }
         .message { max-width: 75%; padding: 10px 15px; border-radius: 20px; }
@@ -61,7 +59,7 @@
         .message-image { max-width: 200px; border-radius: 15px; margin-top: 5px; cursor: pointer; }
         .message-time { font-size: 10px; margin-top: 5px; opacity: 0.6; }
         .input-area { background: #1e1b24; padding: 12px 16px; display: flex; gap: 12px; align-items: center; border-top: 1px solid #2a2730; position: absolute; bottom: 0; left: 0; right: 0; }
-        .input-area input { flex: 1; padding: 12px 18px; border: none; border-radius: 25px; background: #2a2730; color: white; font-size: 15px; }
+        .input-area input { flex: 1; padding: 12px 18px; border: none; border-radius: 25px; background: #2a2730; color: white; }
         .input-btn { width: 44px; height: 44px; border: none; border-radius: 50%; cursor: pointer; font-size: 20px; background: #2a2730; color: white; flex-shrink: 0; }
         .send-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
         .call-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; }
@@ -72,41 +70,36 @@
         .modal-content button { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 25px; font-weight: 600; cursor: pointer; }
         .share-link-box { background: #2a2730; padding: 12px; border-radius: 15px; word-break: break-all; margin: 10px 0; font-size: 12px; }
         .member-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #2a2730; }
-        .kick-btn { background: #dc2626; color: white; border: none; padding: 4px 12px; border-radius: 15px; cursor: pointer; font-size: 12px; }
+        .kick-btn { background: #dc2626; color: white; border: none; padding: 4px 12px; border-radius: 15px; cursor: pointer; }
         @media (min-width: 769px) { .sidebar { width: 320px; transform: translateX(0) !important; } .chat-area { left: 320px; width: calc(100% - 320px); transform: translateX(0) !important; } .back-btn { display: none; } }
-        ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: #1e1b24; } ::-webkit-scrollbar-thumb { background: #667eea; border-radius: 5px; }
     </style>
 </head>
 <body>
-    <!-- Login Screen -->
     <div id="loginScreen" class="login-screen">
         <div class="login-card">
             <h1><i class="fas fa-comment-dots"></i> Pocket Messenger</h1>
             <input type="email" id="loginEmail" placeholder="ইমেইল">
             <input type="password" id="loginPassword" placeholder="পাসওয়ার্ড">
-            <button class="btn-login" onclick="login()"><i class="fas fa-sign-in-alt"></i> লগইন</button>
-            <button class="btn-register" onclick="showRegister()"><i class="fas fa-user-plus"></i> নতুন অ্যাকাউন্ট খুলুন</button>
+            <button class="btn-login" onclick="login()">লগইন</button>
+            <button class="btn-register" onclick="showRegister()">নতুন অ্যাকাউন্ট খুলুন</button>
         </div>
     </div>
 
-    <!-- Main App -->
     <div id="app" class="app">
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h2><i class="fas fa-comments"></i> Pocket Messenger</h2>
+                <h2>Pocket Messenger</h2>
                 <div class="user-row">
                     <span class="user-email" id="userEmail"></span>
-                    <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> লগআউট</button>
+                    <button class="logout-btn" onclick="logout()">লগআউট</button>
                 </div>
             </div>
             <div class="search-box">
                 <input type="text" id="searchGroups" placeholder="🔍 গ্রুপ খুঁজুন..." onkeyup="searchGroups()">
             </div>
             <div class="groups-header">
-                <h3><i class="fas fa-layer-group"></i> আমার গ্রুপসমূহ</h3>
-                <div class="create-group-icon" onclick="showCreateGroupModal()">
-                    <i class="fas fa-plus"></i>
-                </div>
+                <h3>আমার গ্রুপসমূহ</h3>
+                <div class="create-group-icon" onclick="showCreateGroupModal()"><i class="fas fa-plus"></i></div>
             </div>
             <div class="group-list" id="groupList"></div>
         </div>
@@ -132,10 +125,9 @@
         </div>
     </div>
 
-    <!-- Modals -->
     <div id="createGroupModal" class="modal">
         <div class="modal-content">
-            <h3><i class="fas fa-plus-circle"></i> নতুন গ্রুপ তৈরি</h3>
+            <h3>নতুন গ্রুপ তৈরি</h3>
             <input type="text" id="newGroupName" placeholder="গ্রুপের নাম">
             <button class="btn-login" onclick="createGroup()">তৈরি করুন</button>
             <button class="btn-register" onclick="closeModal('createGroupModal')">বাতিল</button>
@@ -144,16 +136,14 @@
     <div id="groupInfoModal" class="modal">
         <div class="modal-content">
             <h3 id="infoGroupName"></h3>
-            <p>🔗 শেয়ার লিংক:</p>
+            <p>শেয়ার লিংক:</p>
             <div class="share-link-box" id="shareLink"></div>
-            <button class="btn-login" onclick="copyShareLink()"><i class="fas fa-copy"></i> লিংক কপি করুন</button>
+            <button class="btn-login" onclick="copyShareLink()">লিংক কপি করুন</button>
             <h4>সদস্যরা</h4>
             <div id="memberList"></div>
             <button class="btn-register" onclick="closeModal('groupInfoModal')">বন্ধ</button>
         </div>
     </div>
-
-    <!-- Daily.co Call Modal -->
     <div id="callModal" class="call-modal">
         <iframe id="dailyFrame" allow="camera; microphone; display-capture"></iframe>
         <button style="position:absolute; bottom:20px; right:20px; background:red; color:white; border:none; padding:10px 20px; border-radius:25px; cursor:pointer; z-index:2001;" onclick="endVideoCall()">কল বন্ধ করুন</button>
@@ -170,8 +160,6 @@
             appId: "1:716703687515:web:b9a11736e7f58e071c307e",
             databaseURL: "https://my-class-46989-default-rtdb.firebaseio.com/"
         };
-
-        // Cloudinary
         const CLOUD_NAME = "debga1ysk";
         const UPLOAD_PRESET = "my class";
 
@@ -179,22 +167,9 @@
         const auth = firebase.auth();
         const db = firebase.database();
 
-        let currentUser = null;
-        let currentGroupId = null;
-        let currentGroup = null;
-        let isAdmin = false;
-        let messageListener = null;
-        let allGroups = [];
-        let dailyFrame = null;
-        let dailyCall = null;
+        let currentUser = null, currentGroupId = null, currentGroup = null, isAdmin = false;
+        let messageListener = null, allGroups = [], dailyCall = null;
 
-        // Daily.co room name (unique per group)
-        function getDailyRoomUrl() {
-            // Daily.co free rooms are public; we use a unique name per group
-            return `https://pocket-messenger-${currentGroupId}.daily.co`;
-        }
-
-        // Firebase Auth
         auth.onAuthStateChanged(async (user) => {
             if (user) {
                 currentUser = user;
@@ -209,15 +184,12 @@
         });
 
         async function loadGroups() {
-            const userGroupsRef = db.ref(`userGroups/${currentUser.uid}`);
-            userGroupsRef.on('value', async (snapshot) => {
+            db.ref(`userGroups/${currentUser.uid}`).on('value', async (snapshot) => {
                 const groups = snapshot.val() || {};
                 const groupList = [];
                 for (let groupId in groups) {
                     const groupData = await db.ref(`groups/${groupId}`).once('value');
-                    if (groupData.exists()) {
-                        groupList.push({ id: groupId, ...groupData.val() });
-                    }
+                    if (groupData.exists()) groupList.push({ id: groupId, ...groupData.val() });
                 }
                 allGroups = groupList;
                 displayGroups(groupList);
@@ -244,13 +216,11 @@
 
         function searchGroups() {
             const text = document.getElementById('searchGroups').value.toLowerCase();
-            const filtered = allGroups.filter(g => g.name.toLowerCase().includes(text));
-            displayGroups(filtered);
+            displayGroups(allGroups.filter(g => g.name.toLowerCase().includes(text)));
         }
 
         async function openGroup(groupId, groupName) {
-            currentGroupId = groupId;
-            currentGroup = groupName;
+            currentGroupId = groupId; currentGroup = groupName;
             const groupData = await db.ref(`groups/${groupId}`).once('value');
             isAdmin = groupData.val().admin === currentUser.uid;
             document.getElementById('currentGroupName').innerHTML = groupName;
@@ -271,21 +241,18 @@
 
         function loadMessages(groupId) {
             if (messageListener) messageListener.off();
-            const messagesRef = db.ref(`messages/${groupId}`);
-            messageListener = messagesRef.on('value', (snapshot) => {
-                const messages = snapshot.val() || {};
-                displayMessages(messages);
+            messageListener = db.ref(`messages/${groupId}`).on('value', (snapshot) => {
+                displayMessages(snapshot.val() || {});
             });
         }
 
         function displayMessages(messages) {
             const container = document.getElementById('messagesContainer');
             container.innerHTML = '';
-            const sorted = Object.values(messages).sort((a,b) => a.timestamp - b.timestamp);
-            sorted.forEach(msg => {
+            Object.values(messages).sort((a,b) => a.timestamp - b.timestamp).forEach(msg => {
                 const div = document.createElement('div');
                 div.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
-                let content = `<div class="message-text">${msg.text || ''}</div>`;
+                let content = `<div>${msg.text || ''}</div>`;
                 if (msg.imageUrl) content += `<img src="${msg.imageUrl}" class="message-image" onclick="window.open('${msg.imageUrl}')">`;
                 content += `<div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>`;
                 div.innerHTML = content;
@@ -298,44 +265,24 @@
             const input = document.getElementById('messageInput');
             const text = input.value.trim();
             if (!text) return;
-            await db.ref(`messages/${currentGroupId}`).push({
-                text: text,
-                senderId: currentUser.uid,
-                senderEmail: currentUser.email,
-                timestamp: Date.now()
-            });
+            await db.ref(`messages/${currentGroupId}`).push({ text, senderId: currentUser.uid, senderEmail: currentUser.email, timestamp: Date.now() });
             await db.ref(`groups/${currentGroupId}`).update({ lastMessage: text });
             input.value = '';
         }
 
         function uploadImage() {
-            const widget = cloudinary.createUploadWidget({
-                cloudName: CLOUD_NAME,
-                uploadPreset: UPLOAD_PRESET
-            }, (error, result) => {
-                if (!error && result && result.event === "success") {
-                    db.ref(`messages/${currentGroupId}`).push({
-                        imageUrl: result.info.secure_url,
-                        senderId: currentUser.uid,
-                        senderEmail: currentUser.email,
-                        timestamp: Date.now()
-                    });
+            cloudinary.createUploadWidget({ cloudName: CLOUD_NAME, uploadPreset: UPLOAD_PRESET }, (err, res) => {
+                if (!err && res && res.event === "success") {
+                    db.ref(`messages/${currentGroupId}`).push({ imageUrl: res.info.secure_url, senderId: currentUser.uid, senderEmail: currentUser.email, timestamp: Date.now() });
                 }
-            });
-            widget.open();
+            }).open();
         }
 
         async function createGroup() {
             const name = document.getElementById('newGroupName').value.trim();
             if (!name) return;
-            const newGroupRef = db.ref('groups').push();
-            const groupId = newGroupRef.key;
-            await newGroupRef.set({
-                name: name,
-                admin: currentUser.uid,
-                createdAt: Date.now(),
-                members: { [currentUser.uid]: { email: currentUser.email, joinedAt: Date.now() } }
-            });
+            const groupId = db.ref('groups').push().key;
+            await db.ref(`groups/${groupId}`).set({ name, admin: currentUser.uid, createdAt: Date.now(), members: { [currentUser.uid]: { email: currentUser.email, joinedAt: Date.now() } } });
             await db.ref(`userGroups/${currentUser.uid}/${groupId}`).set(true);
             closeModal('createGroupModal');
             document.getElementById('newGroupName').value = '';
@@ -343,44 +290,29 @@
         }
 
         window.joinGroup = async function(groupId) {
-            const groupRef = db.ref(`groups/${groupId}`);
-            const snapshot = await groupRef.once('value');
-            if (!snapshot.exists()) { alert('গ্রুপ পাওয়া যায়নি!'); return; }
-            const members = snapshot.val().members || {};
-            if (!members[currentUser.uid]) {
-                await groupRef.child(`members/${currentUser.uid}`).set({ email: currentUser.email, joinedAt: Date.now() });
+            const snapshot = await db.ref(`groups/${groupId}`).once('value');
+            if (!snapshot.exists()) return alert('গ্রুপ পাওয়া যায়নি!');
+            if (!snapshot.val().members[currentUser.uid]) {
+                await db.ref(`groups/${groupId}/members/${currentUser.uid}`).set({ email: currentUser.email, joinedAt: Date.now() });
                 await db.ref(`userGroups/${currentUser.uid}/${groupId}`).set(true);
                 alert('গ্রুপে জয়েন হয়েছেন!');
                 openGroup(groupId, snapshot.val().name);
             }
         };
 
-        // Daily.co Video Call
         function startVideoCall() {
-            if (!isAdmin) {
-                alert('শুধু অ্যাডমিন কল দিতে পারেন!');
-                return;
-            }
-            const roomUrl = getDailyRoomUrl();
+            if (!isAdmin) { alert('শুধু অ্যাডমিন কল দিতে পারেন!'); return; }
+            const roomUrl = `https://pocket-messenger-${currentGroupId}.daily.co`;
             const iframe = document.getElementById('dailyFrame');
             iframe.src = roomUrl;
             document.getElementById('callModal').style.display = 'block';
-            
-            // Initialize Daily iframe
-            dailyCall = DailyIframe.createFrame(iframe, {
-        iframeStyle: { width: '100%', height: '100%' },
-        showLeaveButton: false,
-        showFullscreenButton: true,
-        });
-            dailyCall.join({ url: roomUrl, userName: currentUser.email.split('@')[0] });
+            // Initialize Daily.co call
+            dailyCall = DailyIframe.createFrame(iframe, { iframeStyle: { width: '100%', height: '100%' }, showLeaveButton: false });
+            dailyCall.join({ url: roomUrl, userName: currentUser.email.split('@')[0] }).catch(e => console.error(e));
         }
 
         function endVideoCall() {
-            if (dailyCall) {
-                dailyCall.leave();
-                dailyCall.destroy();
-                dailyCall = null;
-            }
+            if (dailyCall) { dailyCall.leave(); dailyCall.destroy(); dailyCall = null; }
             document.getElementById('callModal').style.display = 'none';
             document.getElementById('dailyFrame').src = '';
         }
@@ -389,19 +321,14 @@
             const shareUrl = `${window.location.origin}${window.location.pathname}#join_${currentGroupId}`;
             document.getElementById('shareLink').innerHTML = shareUrl;
             document.getElementById('infoGroupName').innerHTML = currentGroup;
-            const members = await db.ref(`groups/${currentGroupId}/members`).once('value');
-            const memberList = members.val() || {};
+            const members = (await db.ref(`groups/${currentGroupId}/members`).once('value')).val() || {};
             const container = document.getElementById('memberList');
             container.innerHTML = '';
-            for (let [uid, data] of Object.entries(memberList)) {
-                const adminSnap = await db.ref(`groups/${currentGroupId}/admin`).once('value');
-                const isGroupAdmin = uid === adminSnap.val();
+            for (let [uid, data] of Object.entries(members)) {
+                const isGroupAdmin = uid === (await db.ref(`groups/${currentGroupId}/admin`).once('value')).val();
                 const div = document.createElement('div');
                 div.className = 'member-item';
-                div.innerHTML = `
-                    <span>${data.email} ${isGroupAdmin ? '👑' : ''}</span>
-                    ${isAdmin && uid !== currentUser.uid ? `<button class="kick-btn" onclick="kickMember('${uid}')">কিক</button>` : ''}
-                `;
+                div.innerHTML = `<span>${data.email} ${isGroupAdmin ? '👑' : ''}</span>${isAdmin && uid !== currentUser.uid ? `<button class="kick-btn" onclick="kickMember('${uid}')">কিক</button>` : ''}`;
                 container.appendChild(div);
             }
             document.getElementById('groupInfoModal').style.display = 'flex';
@@ -414,39 +341,13 @@
             showGroupInfo();
         };
 
-        function copyShareLink() {
-            const link = document.getElementById('shareLink').innerText;
-            navigator.clipboard.writeText(link);
-            alert('লিংক কপি করা হয়েছে!');
-        }
-
-        function login() {
-            const email = document.getElementById('loginEmail').value;
-            const password = document.getElementById('loginPassword').value;
-            auth.signInWithEmailAndPassword(email, password).catch(err => alert(err.message));
-        }
-
-        function showRegister() {
-            const email = prompt('ইমেইল দিন:');
-            const password = prompt('পাসওয়ার্ড দিন:');
-            if (email && password) {
-                auth.createUserWithEmailAndPassword(email, password)
-                    .then(() => alert('অ্যাকাউন্ট তৈরি সফল! এখন লগইন করুন।'))
-                    .catch(err => alert(err.message));
-            }
-        }
-
-        function logout() { if (dailyCall) endVideoCall(); auth.signOut(); }
+        function copyShareLink() { navigator.clipboard.writeText(document.getElementById('shareLink').innerText); alert('লিংক কপি করা হয়েছে!'); }
+        function login() { auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value).catch(e => alert(e.message)); }
+        function showRegister() { const e = prompt('ইমেইল:'), p = prompt('পাসওয়ার্ড:'); if(e && p) auth.createUserWithEmailAndPassword(e,p).then(()=>alert('অ্যাকাউন্ট তৈরি সফল! লগইন করুন.')).catch(e=>alert(e.message)); }
+        function logout() { if(dailyCall) endVideoCall(); auth.signOut(); }
         function showCreateGroupModal() { document.getElementById('createGroupModal').style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-
-        // Hash join handler
-        window.addEventListener('load', () => {
-            if (window.location.hash && window.location.hash.startsWith('#join_')) {
-                const groupId = window.location.hash.replace('#join_', '');
-                if (currentUser) setTimeout(() => joinGroup(groupId), 1000);
-            }
-        });
+        window.addEventListener('load', () => { if(window.location.hash && window.location.hash.startsWith('#join_') && currentUser) setTimeout(() => joinGroup(window.location.hash.replace('#join_','')), 1000); });
     </script>
 </body>
 </html>
