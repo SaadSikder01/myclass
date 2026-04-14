@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Pocket Messenger</title>
+    <title>Pocket Messenger - গ্রুপ চ্যাট ও ভিডিও কল (Daily.co)</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    <!-- Jitsi Meet -->
-    <script src="https://meet.jit.si/external_api.js"></script>
+    <!-- Daily.co SDK -->
+    <script crossorigin src="https://unpkg.com/@daily-co/daily-js"></script>
     <!-- Cloudinary -->
     <script src="https://widget.cloudinary.com/v2.0/global/all.js"></script>
     <!-- Font Awesome -->
@@ -369,7 +369,7 @@
 
         .message-image {
             max-width: 200px;
-            border-radius: 15px;
+            border-radius: 10px;
             margin-top: 5px;
             cursor: pointer;
         }
@@ -424,8 +424,8 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
-        /* Jitsi Modal */
-        .jitsi-modal {
+        /* Daily.co Video Call Modal */
+        .daily-modal {
             display: none;
             position: fixed;
             top: 0;
@@ -436,7 +436,7 @@
             z-index: 2000;
         }
 
-        #jitsiContainer {
+        #dailyContainer {
             width: 100%;
             height: 100%;
         }
@@ -630,12 +630,17 @@
         </div>
     </div>
 
-    <!-- Jitsi Modal -->
-    <div id="jitsiModal" class="jitsi-modal">
-        <div id="jitsiContainer"></div>
+    <!-- Daily.co Video Call Modal -->
+    <div id="dailyModal" class="daily-modal">
+        <div id="dailyContainer"></div>
     </div>
 
     <script>
+        // ==================== 🔧 আপনার এখানে Daily.co তথ্য বসান ====================
+        const DAILY_API_KEY = "YOUR_DAILY_API_KEY_HERE";      // আপনার API Key দিন
+        const DAILY_SUBDOMAIN = "pocketclass";                // আপনার Subdomain দিন
+        // ========================================================================
+
         // Firebase Config
         const firebaseConfig = {
             apiKey: "AIzaSyDTxzgfZ8IuPpqp4Q20cE8JZvif32pDhgc",
@@ -659,9 +664,9 @@
         let currentGroupId = null;
         let currentGroup = null;
         let isAdmin = false;
-        let jitsiApi = null;
         let messageListener = null;
         let allGroups = [];
+        let dailyCallFrame = null;
 
         // Auth
         auth.onAuthStateChanged(async (user) => {
@@ -732,7 +737,6 @@
             
             loadMessages(groupId);
             
-            // Show chat area, hide sidebar on mobile
             if (window.innerWidth <= 768) {
                 document.getElementById('sidebar').classList.add('hide');
                 document.getElementById('chatArea').classList.add('show');
@@ -838,31 +842,74 @@
             }
         };
 
-        function startVideoCall() {
-            if (!isAdmin) { alert('শুধু অ্যাডমিন কল দিতে পারেন!'); return; }
-            
-            document.getElementById('jitsiModal').style.display = 'block';
-            const roomName = `pocket_${currentGroupId}`;
-            const userName = currentUser.email.split('@')[0];
-            
-            const options = {
-                roomName: roomName,
-                width: '100%',
-                height: '100%',
-                parentNode: document.getElementById('jitsiContainer'),
-                userInfo: { displayName: userName, email: currentUser.email },
-                configOverwrite: { startWithAudioMuted: false, startWithVideoMuted: false, disableDeepLinking: true }
-            };
-            
-            jitsiApi = new JitsiMeetExternalAPI('meet.jit.si', options);
-            jitsiApi.addEventListener('videoConferenceLeft', () => endVideoCall());
+        // ==================== Daily.co Video Call Functions ====================
+        async function startVideoCall() {
+            if (!isAdmin) {
+                alert('শুধু অ্যাডমিন কল দিতে পারেন!');
+                return;
+            }
+
+            try {
+                // 1. Daily.co-তে একটি নতুন রুম তৈরি করুন
+                const roomName = `pocket-${currentGroupId}-${Date.now()}`;
+                const createRoomResponse = await fetch('https://api.daily.co/v1/rooms/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${DAILY_API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        name: roomName,
+                        privacy: "public",
+                        properties: {
+                            exp: Math.floor(Date.now() / 1000) + 3600  // 1 ঘন্টা পর expire হবে
+                        }
+                    })
+                });
+
+                if (!createRoomResponse.ok) {
+                    throw new Error('রুম তৈরি করতে ব্যর্থ হয়েছে');
+                }
+
+                const roomData = await createRoomResponse.json();
+                const roomUrl = roomData.url;  // যেমন: https://pocketclass.daily.co/pocket-xxx
+
+                // 2. মডাল দেখান এবং কল শুরু করুন
+                document.getElementById('dailyModal').style.display = 'block';
+                
+                // Daily.co ফ্রেম তৈরি করুন
+                dailyCallFrame = window.DailyIframe.createFrame({
+                    showLeaveButton: true,
+                    showFullscreenButton: true,
+                    iframeStyle: {
+                        width: '100%',
+                        height: '100%',
+                        border: '0'
+                    }
+                });
+                
+                dailyCallFrame.join({ url: roomUrl });
+                
+                // কল বন্ধ হলে মডাল বন্ধ করুন
+                dailyCallFrame.on('left-meeting', () => {
+                    endVideoCall();
+                });
+
+            } catch (error) {
+                console.error('ভিডিও কল শুরু করতে ব্যর্থ:', error);
+                alert('ভিডিও কল শুরু করতে ব্যর্থ হয়েছে। নেটওয়ার্ক চেক করুন।');
+            }
         }
 
         function endVideoCall() {
-            if (jitsiApi) { jitsiApi.dispose(); jitsiApi = null; }
-            document.getElementById('jitsiModal').style.display = 'none';
-            document.getElementById('jitsiContainer').innerHTML = '';
+            if (dailyCallFrame) {
+                dailyCallFrame.destroy();
+                dailyCallFrame = null;
+            }
+            document.getElementById('dailyModal').style.display = 'none';
+            document.getElementById('dailyContainer').innerHTML = '';
         }
+        // ========================================================================
 
         async function showGroupInfo() {
             const shareUrl = `${window.location.origin}${window.location.pathname}#join_${currentGroupId}`;
@@ -917,7 +964,14 @@
             }
         }
 
-        function logout() { if (jitsiApi) jitsiApi.dispose(); auth.signOut(); }
+        function logout() { 
+            if (dailyCallFrame) {
+                dailyCallFrame.destroy();
+                dailyCallFrame = null;
+            }
+            auth.signOut(); 
+        }
+        
         function showCreateGroupModal() { document.getElementById('createGroupModal').style.display = 'flex'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     </script>
