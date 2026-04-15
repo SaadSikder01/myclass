@@ -10,6 +10,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <!-- Cloudinary -->
     <script src="https://widget.cloudinary.com/v2.0/global/all.js"></script>
+    <!-- CryptoJS for SHA256 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -67,8 +69,9 @@
         .share-link-box { background: #2a2730; padding: 12px; border-radius: 15px; word-break: break-all; margin: 10px 0; font-size: 12px; }
         .member-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #2a2730; }
         .kick-btn { background: #dc2626; color: white; border: none; padding: 4px 12px; border-radius: 15px; cursor: pointer; }
-        .bbb-iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 2000; background: white; display: none; }
+        .bbb-iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 2000; background: #1a1a1a; display: none; }
         .close-bbb { position: fixed; bottom: 20px; right: 20px; background: red; color: white; border: none; padding: 12px 24px; border-radius: 30px; cursor: pointer; z-index: 2001; font-size: 16px; font-weight: bold; }
+        .bbb-loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 20px; z-index: 2002; display: none; }
         @media (min-width: 769px) { .sidebar { width: 320px; transform: translateX(0) !important; } .chat-area { left: 320px; width: calc(100% - 320px); transform: translateX(0) !important; } .back-btn { display: none; } }
     </style>
 </head>
@@ -124,6 +127,7 @@
     </div>
 
     <!-- BBB Iframe -->
+    <div id="bbbLoading" class="bbb-loading"><i class="fas fa-spinner fa-spin"></i> ক্লাস লোড হচ্ছে...</div>
     <iframe id="bbbIframe" class="bbb-iframe" allow="camera; microphone; display-capture; autoplay"></iframe>
     <button class="close-bbb" id="closeBbbBtn" onclick="closeBBB()" style="display:none;">✕ ক্লাস বন্ধ করুন</button>
 
@@ -161,7 +165,7 @@
         const CLOUD_NAME = "debga1ysk";
         const UPLOAD_PRESET = "my class";
 
-        // BBB Public Test Server
+        // BBB Public Test Server (সঠিক checksum জেনারেশন)
         const BBB_API_URL = "https://test-install.blindsidenetworks.com/bigbluebutton/api";
         const BBB_SECRET = "8cd8ef52e8e101574e400365b55e11a6";
 
@@ -172,40 +176,42 @@
         let currentUser = null, currentGroupId = null, currentGroup = null, isAdmin = false;
         let messageListener = null, allGroups = [];
 
-        // SHA256 hash function for BBB checksum
-        async function sha256(message) {
-            const msgBuffer = new TextEncoder().encode(message);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        // সঠিক SHA256 checksum জেনারেশন (BBB ফরম্যাট)
+        function getBBBChecksum(apiCall, queryString) {
+            const checksumString = apiCall + queryString + BBB_SECRET;
+            return CryptoJS.SHA256(checksumString).toString();
         }
 
-        // Generate BBB Join URL
-        async function getBBBJoinURL(meetingID, userName, isModerator) {
+        // Create Meeting এবং Join URL তৈরি
+        async function createAndJoinBBB(meetingID, userName, isModerator) {
             const password = isModerator ? "mp123" : "ap123";
-            const name = encodeURIComponent(userName);
+            const fullName = encodeURIComponent(userName);
+            const meetingName = encodeURIComponent(currentGroup);
             
-            // Create meeting first
-            const createParams = `name=${encodeURIComponent(currentGroup)}&meetingID=${meetingID}&attendeePW=ap123&moderatorPW=mp123&welcome=${encodeURIComponent("Pocket Classroom এ স্বাগতম!")}`;
-            const createChecksum = await sha256(`create${createParams}${BBB_SECRET}`);
+            // Create meeting parameters
+            const createParams = `name=${meetingName}&meetingID=${meetingID}&attendeePW=ap123&moderatorPW=mp123&welcome=${encodeURIComponent("পকেট ক্লাসরুমে স্বাগতম!")}`;
+            const createChecksum = getBBBChecksum("create", createParams);
             const createUrl = `${BBB_API_URL}/create?${createParams}&checksum=${createChecksum}`;
             
             try {
+                // Create meeting
                 const createRes = await fetch(createUrl);
                 const createText = await createRes.text();
-                console.log("BBB Create Response:", createText);
+                console.log("Create response:", createText);
                 
                 if (!createText.includes("success") && !createText.includes("already")) {
-                    console.error("Meeting creation failed");
+                    console.warn("Meeting may already exist or creation issue");
                 }
             } catch(e) {
-                console.error("Create meeting error:", e);
+                console.warn("Create meeting error (might already exist):", e);
             }
             
-            // Join URL
-            const joinParams = `fullName=${name}&meetingID=${meetingID}&password=${password}`;
-            const joinChecksum = await sha256(`join${joinParams}${BBB_SECRET}`);
-            return `${BBB_API_URL}/join?${joinParams}&checksum=${joinChecksum}&redirect=true`;
+            // Join meeting parameters
+            const joinParams = `fullName=${fullName}&meetingID=${meetingID}&password=${password}`;
+            const joinChecksum = getBBBChecksum("join", joinParams);
+            const joinUrl = `${BBB_API_URL}/join?${joinParams}&checksum=${joinChecksum}`;
+            
+            return joinUrl;
         }
 
         // Auth
@@ -348,24 +354,44 @@
             
             const meetingID = `class_${currentGroupId}`;
             const userName = currentUser.email.split('@')[0];
-            const joinUrl = await getBBBJoinURL(meetingID, userName, true);
             
-            const iframe = document.getElementById('bbbIframe');
-            iframe.src = joinUrl;
-            iframe.style.display = 'block';
-            document.getElementById('closeBbbBtn').style.display = 'block';
-        }
-
-        function joinBBBAsStudent() {
-            if (!currentGroupId) return;
-            const meetingID = `class_${currentGroupId}`;
-            const userName = currentUser.email.split('@')[0];
-            getBBBJoinURL(meetingID, userName, false).then(joinUrl => {
+            document.getElementById('bbbLoading').style.display = 'block';
+            
+            try {
+                const joinUrl = await createAndJoinBBB(meetingID, userName, true);
+                console.log("Join URL:", joinUrl);
+                
                 const iframe = document.getElementById('bbbIframe');
                 iframe.src = joinUrl;
                 iframe.style.display = 'block';
                 document.getElementById('closeBbbBtn').style.display = 'block';
-            });
+            } catch (error) {
+                console.error("BBB Error:", error);
+                alert("ক্লাস শুরু করতে ব্যর্থ হয়েছে। আবার চেষ্টা করুন।");
+            } finally {
+                document.getElementById('bbbLoading').style.display = 'none';
+            }
+        }
+
+        async function joinBBBAsStudent() {
+            if (!currentGroupId) return;
+            const meetingID = `class_${currentGroupId}`;
+            const userName = currentUser.email.split('@')[0];
+            
+            document.getElementById('bbbLoading').style.display = 'block';
+            
+            try {
+                const joinUrl = await createAndJoinBBB(meetingID, userName, false);
+                const iframe = document.getElementById('bbbIframe');
+                iframe.src = joinUrl;
+                iframe.style.display = 'block';
+                document.getElementById('closeBbbBtn').style.display = 'block';
+            } catch (error) {
+                console.error("BBB Error:", error);
+                alert("ক্লাসে যোগ দিতে ব্যর্থ হয়েছে। নিশ্চিত করুন শিক্ষক ক্লাস শুরু করেছেন।");
+            } finally {
+                document.getElementById('bbbLoading').style.display = 'none';
+            }
         }
 
         function closeBBB() {
@@ -383,7 +409,7 @@
             const container = document.getElementById('memberList');
             container.innerHTML = '';
             
-            // Add BBB Join button for students
+            // BBB Join button for students
             if (!isAdmin && currentGroupId) {
                 const joinDiv = document.createElement('div');
                 joinDiv.className = 'member-item';
