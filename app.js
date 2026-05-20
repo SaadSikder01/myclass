@@ -1,11 +1,14 @@
 const SUPABASE_URL = "https://bytnxoltodeckrmwobgc.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5dG54b2x0b2RlY2tybXdvYmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNjgwNDYsImV4cCI6MjA5NDg0NDA0Nn0.14nw0jHluWSlQTbrguKpHsXwmDjnirUktpJ_RCE9iHs";
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// 👈 window.supabase দিয়ে কল করুন যেন ব্রাউজার কনফিউজড না হয়
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); 
+
 let currentUser = null;
 let activeGroupId = null;
 let activeGroupCreatorId = null;
 let activeGroupUniqueId = null;
+// ... (বাকি নিচের সব কোড আগের মতোই থাকবে)
 
 document.addEventListener("DOMContentLoaded", () => {
     supabase.auth.onAuthStateChange((event, session) => {
