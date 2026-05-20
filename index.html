@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyClassroom</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .hidden { display: none !important; }
+        #app-layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; margin-top: 20px; }
+        .sidebar { border-right: 1px solid #ccc; padding-right: 15px; }
+        .chat-box { height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
+        .notification-badge { background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 12px; }
+    </style>
+</head>
+<body class="container">
+
+    <!-- 🔐 অথেনটিকেশন স্ক্রিন (লগইন ও সাইনআপ) -->
+    <div id="auth-container">
+        <div id="login-form">
+            <h2>Login to MyClassroom</h2>
+            <input type="email" id="login-email" placeholder="Email">
+            <input type="password" id="login-password" placeholder="Password">
+            <button onclick="loginUser()">Login</button>
+            <p>Don't have an account? <a href="#" onclick="toggleAuthForms(true)">Sign Up</a></p>
+        </div>
+
+        <div id="signup-form" class="hidden">
+            <h2>Create Account</h2>
+            <input type="text" id="signup-name" placeholder="Full Name">
+            <input type="email" id="signup-email" placeholder="Email">
+            <input type="password" id="signup-password" placeholder="Password">
+            <input type="password" id="signup-confirm-password" placeholder="Confirm Password">
+            <label>Profile Picture: <input type="file" id="signup-avatar" accept="image/*"></label>
+            <button onclick="registerUser()">Register</button>
+            <p>Already have an account? <a href="#" onclick="toggleAuthForms(false)">Login</a></p>
+        </div>
+    </div>
+
+    <!-- 🏫 মেইন অ্যাপ ড্যাশবোর্ড -->
+    <div id="app-container" class="hidden">
+        <header style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0;">
+            <div>
+                <img id="user-avatar" src="" alt="Avatar" style="width:40px; height:40px; border-radius:50%; margin-right:10px;">
+                <span id="welcome-user">Welcome</span>
+            </div>
+            <div>
+                <!-- 🔔 নোটিফিকেশন আইকন -->
+                <button class="outline" onclick="toggleNotifications()" style="margin-right: 10px;">
+                    🔔 Requests <span id="noti-count" class="notification-badge hidden">0</span>
+                </button>
+                <button class="secondary" onclick="logoutUser()">Logout</button>
+            </div>
+        </header>
+
+        <!-- নোটিফিকেশন লিস্ট প্যানেল -->
+        <div id="notification-panel" class="hidden" style="background:#f9f9f9; padding:15px; border:1px solid #ccc; margin-bottom:15px; border-radius:5px;">
+            <h5>Join Requests (Teacher Panel)</h5>
+            <ul id="requests-list"><li>No pending requests</li></ul>
+        </div>
+
+        <div id="app-layout">
+            <!-- বাম পাশের সাইডবার: গ্রুপ খোঁজা ও তৈরি করা -->
+            <div class="sidebar">
+                <!-- ১. ইউনিক আইডি দিয়ে গ্রুপ সার্চ -->
+                <article style="padding: 10px;">
+                    <h6>Search Classroom</h6>
+                    <input type="text" id="search-id" placeholder="Enter Unique ID">
+                    <button class="outline" onclick="searchGroup()">🔍 Search</button>
+                    <div id="search-result" style="margin-top:10px;"></div>
+                </article>
+
+                <!-- ২. নতুন গ্রুপ তৈরি করার ফর্ম -->
+                <article style="padding: 10px;">
+                    <h6>Create Classroom</h6>
+                    <input type="text" id="group-name" placeholder="Classroom Name">
+                    <input type="text" id="group-unique-id" placeholder="Unique ID (e.g. MATH101)">
+                    <label>Group Banner: <input type="file" id="group-avatar" accept="image/*"></label>
+                    <button onclick="createGroup()">➕ Create</button>
+                </article>
+
+                <h6>Your Groups</h6>
+                <ul id="my-groups-list"></ul>
+            </div>
+
+            <!-- ডান পাশের মেইন এরিয়া: চ্যাট ও ভিডিও কল উইন্ডো -->
+            <div class="main-content">
+                <div id="no-group-selected">
+                    <h4>Select a classroom to start learning!</h4>
+                </div>
+
+                <div id="active-classroom" class="hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 id="active-group-title">Classroom Name</h3>
+                        
+                        <!-- 📹 ভিডিও কল বাটন (টিচার বাটনটি সচল পাবেন) -->
+                        <button id="call-btn" class="error" onclick="startClassCall()">📹 Start Class (Admin Only)</button>
+                    </div>
+                    
+                    <!-- ইমেইল দিয়ে ডিরেক্ট স্টুডেন্ট অ্যাড করার অপশন -->
+                    <div id="teacher-invite-zone" class="hidden" style="margin-bottom:15px;">
+                        <input type="email" id="invite-email" placeholder="Student Email Address" style="display:inline-block; width:70%; margin-right:10px;">
+                        <button onclick="directAddUser()" style="display:inline-block; width:25%;">Add Student</button>
+                    </div>
+
+                    <!-- রিয়েল-টাইম চ্যাট বক্স -->
+                    <div class="chat-box" id="chat-messages"></div>
+                    <div style="display: flex;">
+                        <input type="text" id="message-input" placeholder="Type a message...">
+                        <button onclick="sendMessage()" style="width: 100px; margin-left: 10px;">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
