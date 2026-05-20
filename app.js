@@ -2,7 +2,6 @@
 const SUPABASE_URL = "https://bytnxoltodeckrmwobgc.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5dG54b2x0b2RlY2tybXdvYmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNjgwNDYsImV4cCI6MjA5NDg0NDA0Nn0.14nw0jHluWSlQTbrguKpHsXwmDjnirUktpJ_RCE9iHs";
 
-// গ্লোবাল সংঘর্ষ এড়াতে আমরা supabaseClient অবজেক্টটি তৈরি করলাম
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
@@ -10,7 +9,6 @@ let activeGroupId = null;
 let activeGroupCreatorId = null;
 let activeGroupUniqueId = null;
 
-// অ্যাপ লোড হওয়ার সাথে সাথে লগইন সেশন চেক করা
 document.addEventListener("DOMContentLoaded", () => {
     supabaseClient.auth.onAuthStateChange((event, session) => {
         if (session) {
@@ -24,7 +22,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-// ফর্ম টগল লজিক (সাইনআপ/লগইন)
 function toggleAuthForms(showSignup) {
     document.getElementById('login-form').classList.toggle('hidden', showSignup);
     document.getElementById('signup-form').classList.toggle('hidden', !showSignup);
@@ -92,7 +89,6 @@ async function createGroup() {
 
     if (groupErr) { alert("Unique ID already exists!"); return; }
 
-    // গ্রুপ সৃষ্টিকারীকে শিক্ষক (Teacher) হিসেবে মেম্বার তালিকায় যোগ করা
     await supabaseClient.from('group_members').insert([
         { group_id: groupData.id, user_id: currentUser.id, role: 'teacher' }
     ]);
@@ -129,7 +125,8 @@ async function searchGroup() {
         </div>`;
 }
 
-async_function sendJoinRequest(groupId) {
+// 👈 এই যে এখানে ভুলটা ফিক্স করা হয়েছে
+async function sendJoinRequest(groupId) {
     const { error } = await supabaseClient.from('join_requests').insert([{ group_id: groupId, user_id: currentUser.id }]);
     if (error) alert("Already requested or member!"); else alert("Request sent successfully!");
 }
@@ -181,7 +178,6 @@ async function openClassroom(id, name, creatorId, uniqueId) {
     document.getElementById('active-classroom').classList.remove('hidden');
     document.getElementById('active-group-title').innerText = name;
 
-    // শিক্ষক ও ছাত্রের প্যানেল আলাদা করা
     if (currentUser.id === creatorId) {
         document.getElementById('teacher-invite-zone').classList.remove('hidden');
         document.getElementById('call-btn').innerText = "📹 Start Class (Admin)";
