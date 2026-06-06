@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyClassroom</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* WhatsApp & Messenger Dynamic Color Palette */
+        :root {
+            --wa-dark-green: #075E54;
+            --wa-teal: #128C7E;
+            --wa-light-green: #25D366;
+            --wa-bg: #f0f2f5;
+            --wa-chat-bg: #efeae2;
+            --wa-bubble-me: #dcf8c6;
+            --wa-bubble-them: #ffffff;
+            --msg-search-bg: #f0f2f5;
+            --text-color: #111111;
+            --card-bg: #ffffff;
+        }
+
+        /* 🌙 Dark Mode Overrides */
+        body.dark-mode {
+            --wa-dark-green: #202c33;
+            --wa-teal: #00a884;
+            --wa-bg: #111b21;
+            --wa-chat-bg: #0b141a;
+            --wa-bubble-me: #005c4b;
+            --wa-bubble-them: #202c33;
+            --msg-search-bg: #2a3942;
+            --text-color: #e9edef;
+            --card-bg: #111b21;
+        }
+
+        body.container { max-width: 100%; padding: 0; margin: 0; background-color: var(--wa-bg); height: 100vh; display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--text-color); transition: background 0.3s, color 0.3s; }
+        .hidden { display: none !important; }
+        
+        /* Layout Structure */
+        #auth-container { max-width: 450px; margin: 60px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        #app-container { display: flex; flex-direction: column; height: 100vh; width: 100%; }
+        
+        /* App Header */
+        header { background: var(--wa-dark-green); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; transition: background 0.3s; }
+        
+        /* Header Actions */
+        .header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+        .settings-dropdown-container { position: relative; display: inline-block; }
+        .gear-btn { background: transparent; border: none; padding: 0; margin: 0; font-size: 20px; cursor: pointer; color: white; width: auto; line-height: 1; }
+        .gear-btn:hover { opacity: 0.8; background: transparent; }
+        
+        /* Dropdown Menu CSS */
+        .dropdown-menu { position: absolute; right: 0; top: 100%; background: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; width: 160px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); z-index: 50; padding: 5px 0; margin-top: 5px; }
+        body.dark-mode .dropdown-menu { border-color: #374248; }
+        .dropdown-menu a { display: block; padding: 8px 15px; color: var(--text-color); text-decoration: none; font-size: 14px; text-align: left; }
+        .dropdown-menu a:hover { background: var(--msg-search-bg); }
+
+        #app-layout { display: flex; flex: 1; overflow: hidden; position: relative; }
+        
+        /* Sidebar View */
+        .sidebar { width: 360px; background: var(--card-bg); border-right: 1px solid #e1e1e1; display: flex; flex-direction: column; transition: all 0.3s ease; position: relative; }
+        body.dark-mode .sidebar { border-right-color: #222e35; }
+        
+        /* Sidebar Top Header */
+        .sidebar-top { padding: 15px 20px 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-top h3 { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-color); }
+        .add-group-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--msg-search-bg); border: none; color: var(--text-color); font-size: 20px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; margin: 0; padding: 0; transition: background 0.2s; }
+        .add-group-btn:hover { opacity: 0.9; }
+
+        /* Messenger Style Search Bar */
+        .messenger-search-box { padding: 0 20px 15px 20px; position: relative; border-bottom: 1px solid var(--msg-search-bg); }
+        .search-wrapper { display: flex; background: var(--msg-search-bg); border-radius: 20px; padding: 4px 15px; align-items: center; }
+        .search-wrapper input { background: transparent; border: none; margin: 0; padding: 6px 0; font-size: 14px; color: var(--text-color); }
+        .search-wrapper input:focus { box-shadow: none; }
+        .search-wrapper button { background: transparent; border: none; margin: 0; padding: 0 0 0 10px; color: #65676b; font-size: 16px; cursor: pointer; width: auto; }
+        
+        #search-result { padding: 10px 20px; background: var(--card-bg); max-height: 150px; overflow-y: auto; }
+
+        /* WhatsApp Style Chat List */
+        .chat-list-container { flex: 1; overflow-y: auto; }
+        #my-groups-list { list-style: none; padding: 0; margin: 0; }
+        #my-groups-list li { border-bottom: 1px solid var(--msg-search-bg); }
+        
+        .chat-item { display: flex; align-items: center; padding: 12px 20px; color: var(--text-color); text-decoration: none; transition: background 0.2s; cursor: pointer; }
+        .chat-item:hover { background: var(--msg-search-bg); text-decoration: none; }
+        .chat-item-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; margin-right: 15px; background: #ccc; flex-shrink: 0; }
+        .chat-item-info { flex: 1; min-width: 0; }
+        .chat-item-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px; }
+        .chat-item-name { font-weight: 600; font-size: 16px; margin: 0; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .chat-item-time { font-size: 12px; color: #666; flex-shrink: 0; }
+        .chat-item-msg { font-size: 13px; color: #666; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Custom Popup/Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; transition: all 0.3s ease; }
+        .custom-modal { background: var(--card-bg); color: var(--text-color); padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); position: relative; }
+        .custom-modal h4 { margin-top: 0; margin-bottom: 20px; color: var(--wa-teal); font-weight: 700; }
+        .custom-modal input, .custom-modal label { margin-bottom: 15px; color: var(--text-color); }
+        .custom-modal input { background: var(--msg-search-bg); border: 1px solid #ccc; color: var(--text-color); }
+        body.dark-mode .custom-modal input { border-color: #374248; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
+        .modal-buttons button { margin: 0; padding: 8px 20px; font-size: 15px; width: auto; }
+
+        /* Member List Styles */
+        .member-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--msg-search-bg); }
+        .member-info { display: flex; align-items: center; gap: 12px; }
+        .member-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; background: #ccc; }
+        .member-name { font-weight: 500; font-size: 15px; color: var(--text-color); }
+        .admin-badge { background: #e0f2fe; color: #0369a1; padding: 2px 7px; font-size: 11px; font-weight: bold; border-radius: 4px; margin-left: 5px; }
+        body.dark-mode .admin-badge { background: #0369a1; color: #e0f2fe; }
+        .make-admin-btn { padding: 3px 10px; font-size: 11px; margin: 0; width: auto; background: var(--wa-teal); border: none; border-radius: 4px; color: white; cursor: pointer; }
+
+        /* Main Chat View */
+        .main-content { flex: 1; display: flex; flex-direction: column; background: var(--wa-chat-bg); transition: all 0.3s ease; background-size: cover; background-position: center; }
+        #no-group-selected { display: flex; align-items: center; justify-content: center; flex: 1; color: #777; text-align: center; padding: 20px; }
+        #active-classroom { display: flex; flex-direction: column; height: 100%; }
+        
+        /* Chat Sub-Header */
+        .chat-header { background: #eeeeee; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e0e0e0; transition: background 0.3s; }
+        body.dark-mode .chat-header { background: #182229; border-bottom-color: #222e35; }
+        .chat-header h4 { margin: 0; font-size: 18px; color: var(--text-color); }
+        
+        /* Header controls layout inside group */
+        .group-header-controls { display: flex; align-items: center; gap: 10px; }
+        #call-btn { background:#d32f2f; border:none; padding: 4px 10px; font-size:12px; margin:0; width: auto; font-weight: 600; border-radius: 5px; }
+        #share-btn { background: var(--wa-teal); border:none; padding: 4px 10px; font-size:12px; margin:0; width: auto; font-weight: 600; border-radius: 5px; color: white; }
+        .group-gear-btn { background: transparent; border: none; padding: 3px; margin: 0; font-size: 18px; cursor: pointer; color: var(--text-color); width: auto; line-height: 1; }
+        .group-gear-btn:hover { opacity: 0.7; background: transparent; }
+
+        /* Chat Bubbles Area */
+        .chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .msg-row { display: flex; width: 100%; margin-bottom: 4px; }
+        .msg-row.me { justify-content: flex-end; }
+        .msg-row.them { justify-content: flex-start; }
+        
+        .bubble { max-width: 70%; padding: 8px 14px; border-radius: 8px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); position: relative; font-size: 15px; word-break: break-word; color: #303030; }
+        .msg-row.me .bubble { background: var(--wa-bubble-me); border-top-right-radius: 0; }
+        .msg-row.them .bubble { background: var(--wa-bubble-them); border-top-left-radius: 0; }
+        body.dark-mode .msg-row.them .bubble { color: #e9edef; }
+        body.dark-mode .msg-row.me .bubble { color: #e9edef; }
+        
+        .bubble .sender-name { font-size: 12px; font-weight: bold; color: var(--wa-teal); margin-bottom: 3px; }
+        .msg-row.me .sender-name { color: #4f772d; }
+        body.dark-mode .msg-row.me .sender-name { color: #86efac; }
+
+        /* Input Footer */
+        .chat-footer { background: #f0f0f0; padding: 10px 15px; display: flex; align-items: center; gap: 10px; }
+        body.dark-mode .chat-footer { background: #182229; }
+        .chat-footer input { margin: 0; background: var(--card-bg); border: none; border-radius: 20px; padding: 10px 20px; color: var(--text-color); }
+        .chat-footer button { margin: 0; border-radius: 50px; background: var(--wa-teal); border: none; padding: 10px 24px; width: auto; }
+        
+        .notification-badge { background: var(--wa-light-green); color: white; border-radius: 50%; padding: 2px 7px; font-size: 11px; font-weight: bold; }
+        .back-btn { display: none; background: transparent; border: none; color: var(--wa-teal); font-size: 16px; font-weight: bold; cursor: pointer; margin-right: 10px; padding: 0; width: auto;}
+
+        /* 📱 MOBILE RESPONSIVE MEDIA QUERIES */
+        @media (max-width: 768px) {
+            .sidebar { width: 100%; position: absolute; height: 100%; left: 0; top: 0; z-index: 2; }
+            .main-content { width: 100%; position: absolute; height: 100%; left: 0; top: 0; z-index: 1; }
+            
+            #app-layout.chat-open .sidebar { transform: translateX(-100%); }
+            #app-layout.chat-open .main-content { z-index: 3; }
+            .back-btn { display: inline-block; }
+            
+            #auth-container { margin: 20px; }
+            .bubble { max-width: 85%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="auth-container">
+        <div id="login-form">
+            <h3 style="color: var(--wa-dark-green); text-align:center;">Login to MyClassroom</h3>
+            <input type="email" id="login-email" placeholder="Email">
+            <input type="password" id="login-password" placeholder="Password">
+            <button onclick="loginUser()" style="background: var(--wa-teal); border:none;">Login</button>
+            <p style="text-align: center; margin-top: 15px;">Don't have an account? <a href="javascript:void(0);" onclick="toggleAuthForms(true)">Sign Up</a></p>
+        </div>
+
+        <div id="signup-form" class="hidden">
+            <h3 style="color: var(--wa-dark-green); text-align:center;">Create Account</h3>
+            <input type="text" id="signup-name" placeholder="Full Name">
+            <input type="email" id="signup-email" placeholder="Email">
+            <input type="password" id="signup-password" placeholder="Password">
+            <input type="password" id="signup-confirm-password" placeholder="Confirm Password">
+            <label style="font-size: 14px; margin-bottom: 15px;">Profile Picture: <input type="file" id="signup-avatar" accept="image/*"></label>
+            <button onclick="registerUser()" style="background: var(--wa-teal); border:none;">Register</button>
+            <p style="text-align: center; margin-top: 15px;">Already have an account? <a href="javascript:void(0);" onclick="toggleAuthForms(false)">Login</a></p>
+        </div>
+    </div>
+
+    <div id="app-container" class="hidden">
+        <header>
+            <div style="display: flex; align-items: center;">
+                <img id="user-avatar" src="" alt="Avatar" style="width:36px; height:36px; border-radius:50%; margin-right:12px; object-fit: cover; border: 2px solid white;">
+                <span id="welcome-user" style="font-weight: 500;">Welcome</span>
+            </div>
+            
+            <div class="header-actions">
+                <div class="settings-dropdown-container">
+                    <button class="gear-btn" onclick="toggleSettingsDropdown(event)">⚙️</button>
+                    <div id="settings-dropdown" class="dropdown-menu hidden">
+                        <a href="javascript:void(0);" onclick="openProfileSettingsModal()">Profile Settings</a>
+                        <a href="javascript:void(0);" onclick="logoutUser()">Logout</a>
+                    </div>
+                </div>
+                <button onclick="toggleNotifications()" style="position: relative; margin: 0; padding: 2px 10px; font-size: 12px; line-height: 1.3; width: auto; background: transparent; border: 1px solid rgba(255,255,255,0.4);">
+                    🔔 Requests <span id="noti-count" class="notification-badge hidden">0</span>
+                </button>
+            </div>
+        </header>
+
+<div id="notification-panel" class="hidden" style="position: absolute; right: 20px; top: 65px; background: var(--card-bg); border: 1px solid #ccc; border-radius: 12px; width: 340px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 100; padding: 15px;">
+    <h6 style="color: var(--wa-teal); margin-top: 0; margin-bottom: 12px; font-weight: 700; border-bottom: 1px solid var(--msg-search-bg); padding-bottom: 8px;">📊 Pending Join Requests</h6>
+    <ul id="requests-list" style="list-style: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto;">
+        <li style="text-align: center; color: #777; padding: 10px 0;">No pending requests</li>
+    </ul>
+</div>
+
+<div id="app-layout">
+            <div class="sidebar">
+                <div class="sidebar-top">
+                    <h3>Chats</h3>
+                    <button class="add-group-btn" onclick="toggleCreateModal(true)" title="Create Classroom">+</button>
+                </div>
+
+                <div class="messenger-search-box">
+                    <div class="search-wrapper">
+                        <input type="text" id="search-id" placeholder="Search with unique ID...">
+                        <button onclick="searchGroup()">🔍</button>
+                    </div>
+                    <div id="search-result" class="hidden"></div>
+                </div>
+
+                <div class="chat-list-container">
+                    <ul id="my-groups-list"></ul>
+                </div>
+            </div>
+
+            <div class="main-content" id="chat-main-view">
+                <div id="no-group-selected">
+                    <div>
+                        <h3 style="color: #bbb; font-size: 48px; margin-bottom: 10px;">🏫</h3>
+                        <h4>Select a classroom to start learning!</h4>
+                    </div>
+                </div>
+
+                <div id="active-classroom" class="hidden">
+                    <div class="chat-header">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button class="back-btn" onclick="backToGroupList()">⬅️</button>
+                            <div>
+                                <h4 id="active-group-title" style="margin: 0; line-height: 1.2;">Classroom Name</h4>
+                                <small id="active-group-id-display" style="font-size: 12px; opacity: 0.6; display: block; margin-top: 2px;">ID: --</small>
+                            </div>
+                        </div>
+                        
+                        <div class="group-header-controls">
+                            <button id="toggle-invite-btn" style="background: #4a5568; border:none; padding: 4px 10px; font-size:12px; margin:0; width: auto; font-weight: 600; border-radius: 5px; color: white;" onclick="toggleTeacherInviteZone()" title="Direct Student Management">➕👤</button>
+                            <button id="share-btn" onclick="shareGroupLink()">Share Link</button>
+                            <button id="call-btn" class="error" onclick="startClassCall()">Live Class</button>
+                            <button class="group-gear-btn" onclick="openGroupMembersModal()" title="Group Members">👥</button>
+                            <button class="group-gear-btn" onclick="openGroupSettingsModal()" title="Group Settings">⚙️</button>
+                        </div>
+                    </div>
+                    
+                    <div id="teacher-invite-zone" class="hidden" style="background: #e2e8f0; padding: 8px 15px; display: flex; gap: 10px; align-items: center;">
+                        <input type="email" id="invite-email" placeholder="Student Email Address" style="margin:0; background:var(--card-bg); font-size:14px; height:35px;">
+                        <button onclick="directAddUser()" style="margin:0; background: var(--wa-teal); border:none; padding:0 15px; height:35px; font-size:13px; white-space:nowrap;">Add Student</button>
+                    </div>
+
+                    <div class="chat-box" id="chat-messages"></div>
+
+                    <div class="chat-footer">
+                        <input type="text" id="message-input" placeholder="Type a message...">
+                        <button onclick="sendMessage()">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="create-group-modal" class="modal-overlay hidden">
+        <div class="custom-modal">
+            <h4>Create New Classroom</h4>
+            <input type="text" id="group-name" placeholder="Classroom Name">
+            <input type="text" id="group-unique-id" placeholder="Unique ID (e.g. MATH101)">
+            <label style="font-size: 14px;">Group Banner Picture:
+                <input type="file" id="group-avatar" accept="image/*" style="margin-top: 5px;">
+            </label>
+            <div class="modal-buttons">
+                <button class="secondary" onclick="toggleCreateModal(false)">Cancel</button>
+                <button onclick="createGroup()" style="background: var(--wa-dark-green); border:none;">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="group-members-modal" class="modal-overlay hidden">
+        <div class="custom-modal">
+            <h4>Classroom Members</h4>
+            <div style="max-height: 280px; overflow-y: auto; margin-bottom: 15px;">
+                <ul id="classroom-members-list" style="list-style: none; padding: 0; margin: 0;"></ul>
+            </div>
+            <div class="modal-buttons">
+                <button class="secondary" onclick="toggleMembersModal(false)">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="profile-settings-modal" class="modal-overlay hidden">
+        <div class="custom-modal">
+            <h4>Profile Settings</h4>
+            <input type="text" id="profile-name-input" placeholder="Update Full Name">
+            <label style="font-size: 14px;">Update Profile Picture:
+                <input type="file" id="profile-avatar-input" accept="image/*" style="margin-top: 5px;">
+            </label>
+            
+            <label style="display: flex; align-items: center; gap: 10px; margin-top: 20px; font-size: 15px; cursor: pointer;">
+                <input type="checkbox" id="dark-mode-toggle" onchange="handleDarkModeToggle(this)" style="margin: 0; width: auto;"> Dark Mode Enable
+            </label>
+            
+            <div class="modal-buttons">
+                <button class="secondary" onclick="toggleProfileModal(false)">Cancel</button>
+                <button onclick="saveProfileSettings()" style="background: var(--wa-teal); border:none;">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="group-settings-modal" class="modal-overlay hidden">
+        <div class="custom-modal">
+            <h4>Classroom Settings</h4>
+            <input type="text" id="edit-group-name" placeholder="Update Classroom Name">
+            <label style="font-size: 14px;">Update Group Profile Picture:
+                <input type="file" id="edit-group-avatar" accept="image/*" style="margin-top: 5px;">
+            </label>
+            <label style="font-size: 14px;">Change Chat Background (Wallpaper):
+                <input type="file" id="edit-group-wallpaper" accept="image/*" style="margin-top: 5px;">
+            </label>
+            <div class="modal-buttons">
+                <button class="secondary" onclick="toggleGroupModal(false)">Cancel</button>
+                <button onclick="saveGroupSettings()" style="background: var(--wa-dark-green); border:none;">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // Static UI controls
+        function toggleSettingsDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('settings-dropdown').classList.toggle('hidden');
+        }
+        document.addEventListener('click', () => {
+            document.getElementById('settings-dropdown').classList.add('hidden');
+        });
+        function toggleCreateModal(show) {
+            document.getElementById('create-group-modal').classList.toggle('hidden', !show);
+        }
+        function toggleProfileModal(show) {
+            document.getElementById('profile-settings-modal').classList.toggle('hidden', !show);
+        }
+        function toggleGroupModal(show) {
+            document.getElementById('group-settings-modal').classList.toggle('hidden', !show);
+        }
+        function toggleMembersModal(show) {
+            document.getElementById('group-members-modal').classList.toggle('hidden', !show);
+        }
+        function toggleTeacherInviteZone() {
+            document.getElementById('teacher-invite-zone').classList.toggle('hidden');
+        }
+    </script>
+</body>
+</html>
+
+
+
+
