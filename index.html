@@ -1,323 +1,702 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bn">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyClassroom</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        /* WhatsApp & Messenger Dynamic Color Palette */
-        :root {
-            --wa-dark-green: #075E54;
-            --wa-teal: #128C7E;
-            --wa-light-green: #25D366;
-            --wa-bg: #f0f2f5;
-            --wa-chat-bg: #efeae2;
-            --wa-bubble-me: #dcf8c6;
-            --wa-bubble-them: #ffffff;
-            --msg-search-bg: #f0f2f5;
-            --text-color: #111111;
-            --card-bg: #ffffff;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+  <title>Pocket Class | স্মার্ট লার্নিং</title>
+  <!-- Supabase JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
 
-        body.dark-mode {
-            --wa-dark-green: #202c33;
-            --wa-teal: #00a884;
-            --wa-bg: #111b21;
-            --wa-chat-bg: #0b141a;
-            --wa-bubble-me: #005c4b;
-            --wa-bubble-them: #202c33;
-            --msg-search-bg: #2a3942;
-            --text-color: #e9edef;
-            --card-bg: #111b21;
-        }
+    body {
+      background: linear-gradient(145deg, #f0f9ff 0%, #e6f0fa 100%);
+      font-family: 'Segoe UI', 'Roboto', system-ui, -apple-system, 'Noto Sans Bengali', sans-serif;
+      padding-bottom: 40px;
+      min-height: 100vh;
+    }
 
-        body.container { max-width: 100%; padding: 0; margin: 0; background-color: var(--wa-bg); height: 100vh; display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--text-color); transition: background 0.3s, color 0.3s; }
-        .hidden { display: none !important; }
-        
-        #auth-container { max-width: 450px; margin: 60px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        #app-container { display: flex; flex-direction: column; height: 100vh; width: 100%; }
-        
-        header { background: var(--wa-dark-green); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; transition: background 0.3s; }
-        
-        .header-left { display: flex; align-items: center; gap: 12px; }
-        .header-left img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid white; cursor: pointer; }
-        .header-left span { font-weight: 600; font-size: 16px; }
-        
-        .header-actions { display: flex; align-items: center; gap: 12px; }
-        .icon-btn { background: rgba(255,255,255,0.15); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; position: relative; }
-        .icon-btn:hover { background: rgba(255,255,255,0.25); }
-        .badge-notif { position: absolute; top: 2px; right: 2px; background: #e53935; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-        
-        #notification-panel { position: absolute; right: 20px; top: 65px; background: var(--card-bg); border: 1px solid #ccc; border-radius: 12px; width: 340px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 100; padding: 15px; }
-        
-        .dropdown-menu { position: absolute; right: 0; top: 100%; background: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; width: 180px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); z-index: 50; padding: 5px 0; margin-top: 5px; }
-        body.dark-mode .dropdown-menu { border-color: #374248; }
-        .dropdown-menu a { display: block; padding: 8px 15px; color: var(--text-color); text-decoration: none; font-size: 14px; }
-        .dropdown-menu a:hover { background: var(--msg-search-bg); }
+    /* ----- নেভিগেশন বার ----- */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 64px;
+      background: rgba(102, 255, 255, 0.96);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 1000;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+    }
 
-        #app-layout { display: flex; flex: 1; overflow: hidden; position: relative; }
-        
-        .sidebar { width: 360px; background: var(--card-bg); border-right: 1px solid #e1e1e1; display: flex; flex-direction: column; transition: all 0.3s ease; }
-        body.dark-mode .sidebar { border-right-color: #222e35; }
-        
-        .sidebar-top { padding: 15px 20px 10px; display: flex; justify-content: space-between; align-items: center; }
-        .sidebar-top h3 { margin: 0; font-size: 24px; font-weight: 700; }
-        .add-group-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--msg-search-bg); border: none; font-size: 24px; cursor: pointer; }
-        
-        .messenger-search-box { padding: 0 20px 15px; border-bottom: 1px solid var(--msg-search-bg); }
-        .search-wrapper { display: flex; background: var(--msg-search-bg); border-radius: 20px; padding: 4px 15px; align-items: center; }
-        .search-wrapper input { background: transparent; border: none; margin: 0; padding: 6px 0; font-size: 14px; color: var(--text-color); }
-        
-        .chat-list-container { flex: 1; overflow-y: auto; }
-        #my-groups-list { list-style: none; padding: 0; margin: 0; }
-        #my-groups-list li { border-bottom: 1px solid var(--msg-search-bg); }
-        .chat-item { display: flex; align-items: center; padding: 12px 20px; color: var(--text-color); text-decoration: none; cursor: pointer; }
-        .chat-item:hover { background: var(--msg-search-bg); }
-        .chat-item-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; margin-right: 15px; background: #ccc; }
-        .chat-item-name { font-weight: 600; font-size: 16px; }
-        .chat-item-time { font-size: 12px; color: #666; }
-        
-        .main-content { flex: 1; display: flex; flex-direction: column; background: var(--wa-chat-bg); background-size: cover; background-position: center; }
-        #active-classroom { display: flex; flex-direction: column; height: 100%; }
-        
-        .chat-header { background: #eeeeee; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e0e0e0; }
-        body.dark-mode .chat-header { background: #182229; border-bottom-color: #222e35; }
-        .chat-header h4 { margin: 0; font-size: 18px; }
-        
-        .group-header-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .group-header-btns button {
-            background: #fff; border: 1px solid #ccc; border-radius: 20px; padding: 6px 12px; font-size: 13px;
-            cursor: pointer; display: flex; align-items: center; gap: 6px; color: #333; transition: 0.2s; white-space: nowrap;
-        }
-        body.dark-mode .group-header-btns button { background: #2a3942; color: #e9edef; border-color: #374248; }
-        .group-header-btns button:hover { background: #e0e0e0; }
-        body.dark-mode .group-header-btns button:hover { background: #3a4a55; }
-        
-        .chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .msg-row { display: flex; margin-bottom: 4px; }
-        .msg-row.me { justify-content: flex-end; }
-        .msg-row.them { justify-content: flex-start; }
-        .bubble { max-width: 70%; padding: 8px 14px; border-radius: 8px; font-size: 15px; word-break: break-word; }
-        .msg-row.me .bubble { background: var(--wa-bubble-me); }
-        .msg-row.them .bubble { background: var(--wa-bubble-them); }
-        
-        .chat-footer { background: #f0f0f0; padding: 10px 15px; display: flex; align-items: center; gap: 10px; }
-        body.dark-mode .chat-footer { background: #182229; }
-        .chat-footer input { margin: 0; background: var(--card-bg); border: none; border-radius: 20px; padding: 10px 20px; color: var(--text-color); flex: 1; }
-        .chat-footer button { margin: 0; border-radius: 50px; background: var(--wa-teal); border: none; padding: 10px 24px; }
-        
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; }
-        .custom-modal { background: var(--card-bg); padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; position: relative; color: var(--text-color); }
-        
-        .back-btn { display: none; background: transparent; border: none; font-size: 20px; cursor: pointer; margin-right: 10px; }
-        
-        @media (max-width: 768px) {
-            .sidebar { position: absolute; width: 100%; height: 100%; z-index: 2; }
-            .main-content { position: absolute; width: 100%; height: 100%; z-index: 1; }
-            #app-layout.chat-open .sidebar { transform: translateX(-100%); }
-            #app-layout.chat-open .main-content { z-index: 3; }
-            .back-btn { display: inline-block; }
-        }
-    </style>
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* --- ইউজার বাটন (ডেস্কটপ ডিফল্ট: পিল আকৃতি) --- */
+    .user-btn {
+      background: rgba(255, 255, 255, 0.85);
+      border: none;
+      padding: 6px 12px;
+      border-radius: 40px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #006b6b;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .user-btn:active {
+      transform: scale(0.96);
+      background: white;
+    }
+
+    /* প্রোফাইল ছবি (ডেস্কটপ) */
+    .user-btn img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    /* ডেস্কটপে নাম দেখাবে */
+    .user-name {
+      display: inline;
+    }
+
+    /* --- মোবাইল ভিউ: বাটন হবে একদম গোল, ছবি পুরো জায়গা নেবে --- */
+    @media (max-width: 768px) {
+      .user-btn {
+        padding: 0;                /* প্যাডিং বাদ */
+        width: 44px;              /* বৃত্তের ব্যাস */
+        height: 44px;             /* উচ্চতা সমান */
+        border-radius: 50%;       /* সম্পূর্ণ গোল */
+        justify-content: center;  /* আইকন/ছবি মাঝে বসবে */
+        gap: 0;
+      }
+      .user-btn img {
+        width: 100%;              /* ছবি বাটনের পুরো প্রস্থ নেবে */
+        height: 100%;             /* উচ্চতাও পুরো */
+        border-radius: 50%;       /* গোলাকার রাখতে */
+      }
+      .user-name {
+        display: none;            /* নাম লুকানো */
+      }
+      /* লগইন না থাকলে "🔐 Login" টেক্সট থাকবে, তখন বাটনকে গোল না রেখে অটো প্রস্থ দিন */
+      .user-btn:not(:has(img)) {
+        width: auto;
+        padding: 8px 16px;
+        border-radius: 40px;
+        height: auto;
+      }
+    }
+
+    /* নোটিফিকেশন বেল */
+    .notif-bell {
+      position: relative;
+      cursor: pointer;
+      font-size: 24px;
+      line-height: 1;
+      color: #006b6b;
+      background: rgba(255, 255, 255, 0.85);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      transition: transform 0.2s;
+      user-select: none;
+    }
+
+    .notif-bell:active {
+      transform: scale(0.94);
+    }
+
+    .badge {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: #e53935;
+      color: white;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid white;
+      transition: 0.2s;
+    }
+
+    .badge.hidden {
+      display: none;
+    }
+
+    /* হ্যামবার্গার (মোবাইলের জন্য) */
+    .hamburger {
+      background: rgba(255, 255, 255, 0.85);
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .hamburger span {
+      width: 22px;
+      height: 2.5px;
+      background-color: #006b6b;
+      border-radius: 10px;
+      transition: 0.2s;
+    }
+
+    .hamburger:active {
+      transform: scale(0.94);
+      background: white;
+    }
+
+    .desktop-menu {
+      display: flex;
+      gap: 12px;
+    }
+
+    .nav-btn {
+      background: rgba(255, 255, 255, 0.85);
+      border: none;
+      padding: 8px 18px;
+      border-radius: 40px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #006b6b;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-family: inherit;
+    }
+
+    .nav-btn:active {
+      transform: scale(0.96);
+    }
+
+    /* সাইড মেনু (মোবাইল) */
+    .side-menu {
+      position: fixed;
+      top: 0;
+      right: -280px;
+      width: 280px;
+      height: 100vh;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(20px);
+      box-shadow: -5px 0 30px rgba(0, 0, 0, 0.15);
+      z-index: 1100;
+      transition: right 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+      padding: 80px 24px 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      border-left: 2px solid #66ffff;
+    }
+
+    .side-menu.open {
+      right: 0;
+    }
+
+    .menu-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 1050;
+      opacity: 0;
+      visibility: hidden;
+      transition: 0.25s;
+    }
+
+    .menu-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .side-menu-btn {
+      background: #e6f7f7;
+      border: none;
+      padding: 14px 20px;
+      border-radius: 60px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #006b6b;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .side-menu-btn:active {
+      background: #ccefef;
+      transform: scale(0.97);
+    }
+
+    .close-menu {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: transparent;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: #006b6b;
+    }
+
+    @media (min-width: 769px) {
+      .hamburger { display: none; }
+      .desktop-menu { display: flex; }
+      .side-menu, .menu-overlay { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      .desktop-menu { display: none; }
+      .hamburger { display: flex; }
+      .nav { padding: 0 16px; height: 60px; }
+    }
+
+    /* ----- ক্লাস কার্ড গ্রিড ----- */
+    .class-container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 88px 20px 40px 20px;
+    }
+
+    .class-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 18px;
+    }
+
+    .class-card {
+      background: #ffffff;
+      border-radius: 28px;
+      padding: 20px 12px;
+      text-align: center;
+      border: 1px solid rgba(102, 255, 255, 0.4);
+      box-shadow: 0 10px 22px -12px rgba(0, 0, 0, 0.1);
+      transition: all 0.25s ease;
+      cursor: pointer;
+    }
+
+    .class-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 28px -14px rgba(0, 100, 100, 0.25);
+      border-color: #66ffff;
+    }
+
+    .class-card:active {
+      transform: scale(0.97);
+    }
+
+    .class-title {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #0a4b4b;
+    }
+
+    .class-sub {
+      font-size: 0.8rem;
+      color: #2c7a7a;
+      background: #e0f7f7;
+      padding: 4px 12px;
+      border-radius: 50px;
+      margin-top: 8px;
+      display: inline-block;
+    }
+
+    .greeting {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .greeting h2 {
+      font-size: 1.7rem;
+      font-weight: 600;
+      background: linear-gradient(130deg, #026464, #1f9e9e);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .greeting p {
+      color: #2c6b6b;
+      font-weight: 500;
+      margin-top: 8px;
+    }
+
+    .footer-note {
+      text-align: center;
+      margin-top: 48px;
+      font-size: 0.75rem;
+      color: #5a8f8f;
+      border-top: 1px solid #cce7e7;
+      padding-top: 24px;
+    }
+
+    @media (max-width: 550px) {
+      .class-container { padding: 82px 16px 30px 16px; }
+      .class-grid { grid-template-columns: 1fr; gap: 14px; }
+      .class-title { font-size: 1.3rem; }
+      .greeting h2 { font-size: 1.45rem; }
+    }
+
+    /* চ্যাটবট স্টাইল */
+    #ai-chat-wrapper {
+      position: fixed; bottom: 20px; right: 20px; z-index: 1000; font-family: 'Segoe UI', sans-serif;
+    }
+    #chat-toggle-btn {
+      width: 60px; height: 60px; background: #1a73e8; color: white; border-radius: 50%;
+      display: flex; justify-content: center; align-items: center; cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-size: 24px; transition: transform 0.3s;
+    }
+    #chat-toggle-btn:hover { transform: scale(1.1); }
+    #chat-container {
+      position: absolute; bottom: 80px; right: 0; width: 350px; height: 500px;
+      background: white; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      display: none; flex-direction: column; overflow: hidden; border: 1px solid #ddd;
+    }
+    #chat-header {
+      background: #1a73e8; color: white; padding: 15px; text-align: center; font-weight: bold;
+    }
+    #chat-box {
+      flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #f9f9f9;
+    }
+    .msg { max-width: 85%; padding: 10px; border-radius: 10px; font-size: 14px; }
+    .user { align-self: flex-end; background: #1a73e8; color: white; }
+    .ai { align-self: flex-start; background: #e8eaed; color: #202124; }
+    #input-area { display: flex; padding: 10px; border-top: 1px solid #eee; background: white; }
+    #user-input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
+    #send-btn { background: #1a73e8; color: white; border: none; padding: 8px 15px; margin-left: 5px; border-radius: 5px; cursor: pointer; }
+    .loading-text { font-style: italic; color: #777; font-size: 12px; }
+  </style>
 </head>
 <body>
 
-    <!-- Auth Container -->
-    <div id="auth-container">
-        <div id="login-form">
-            <h3 style="color: var(--wa-dark-green); text-align:center;">Login to MyClassroom</h3>
-            <input type="email" id="login-email" placeholder="Email">
-            <div style="position: relative;">
-                <input type="password" id="login-password" placeholder="Password" style="padding-right: 40px;">
-                <span onclick="togglePassword('login-password', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 18px;">👁️</span>
-            </div>
-            <button onclick="loginUser()" style="background: var(--wa-teal); border:none; margin-top: 15px;">Login</button>
-            <p style="text-align: center; margin-top: 15px;">Don't have an account? <a href="javascript:void(0);" onclick="toggleAuthForms(true)">Sign Up</a></p>
-        </div>
+<nav class="nav">
+  <div class="nav-left">
+    <!-- ইউজার বাটন (ডাইনামিক) -->
+    <button class="user-btn" id="userBtnMobile">🔐 Login</button>
+    <!-- নোটিফিকেশন বেল (শুধু লগইন থাকলে দেখাবে) -->
+    <div class="notif-bell" id="notifBell" style="display: none;" onclick="goToMyClassroom()">
+      🔔
+      <span id="notifBadge" class="badge hidden">0</span>
+    </div>
+  </div>
+  <button class="hamburger" id="hamburgerBtn" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="desktop-menu">
+    <button class="nav-btn" id="settingsDesktop">⚙️ Settings</button>
+    <button class="nav-btn" id="adminDesktop">🆘 Admin help</button>
+  </div>
+</nav>
 
-        <div id="signup-form" class="hidden">
-            <h3 style="color: var(--wa-dark-green); text-align:center;">Create Account</h3>
-            <input type="text" id="signup-name" placeholder="Full Name">
-            <input type="email" id="signup-email" placeholder="Email">
-            <div style="position: relative;">
-                <input type="password" id="signup-password" placeholder="Password" style="padding-right: 40px;">
-                <span onclick="togglePassword('signup-password', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 18px;">👁️</span>
-            </div>
-            <div style="position: relative;">
-                <input type="password" id="signup-confirm-password" placeholder="Confirm Password" style="padding-right: 40px;">
-                <span onclick="togglePassword('signup-confirm-password', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 18px;">👁️</span>
-            </div>
-            <label style="font-size: 14px;">Profile Picture: <input type="file" id="signup-avatar" accept="image/*"></label>
-            <button onclick="registerUser()" style="background: var(--wa-teal); border:none;">Register</button>
-            <p style="text-align: center; margin-top: 15px;">Already have an account? <a href="javascript:void(0);" onclick="toggleAuthForms(false)">Login</a></p>
+<!-- মোবাইল সাইড মেনু -->
+<div class="side-menu" id="sideMenu">
+  <button class="close-menu" id="closeMenuBtn">✕</button>
+  <button class="side-menu-btn" id="settingsMobileBtn">⚙️ Settings</button>
+  <button class="side-menu-btn" id="adminMobileBtn">🆘 Admin help</button>
+</div>
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<div class="class-container">
+  <div class="greeting">
+    <h2>📘 My Class</h2>
+    <p>তোমার শ্রেণী নির্বাচন করো — শিখন শুরু হোক</p>
+  </div>
+  <div class="class-grid" id="classGrid"></div>
+  <div class="footer-note">© 2026 MyClass, all rights reserved</div>
+</div>
+
+<!-- চ্যাটবট (AI) -->
+<div id="ai-chat-wrapper">
+    <div id="chat-container">
+        <div id="chat-header">বই পড়ার এআই সহকারী</div>
+        <div id="chat-box"><div class="msg ai">স্বাগতম! প্রশ্ন লিখুন।</div></div>
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="প্রশ্ন লিখুন...">
+            <button id="send-btn" onclick="askAI()">পাঠান</button>
         </div>
     </div>
+    <div id="chat-toggle-btn" onclick="toggleChat()">💬</div>
+</div>
 
-    <!-- App Container -->
-    <div id="app-container" class="hidden">
-        <header>
-            <div class="header-left">
-                <img id="header-avatar" src="" alt="Profile" onclick="openProfilePreview()">
-                <span id="header-name"></span>
-            </div>
-            <div class="header-actions">
-                <button class="icon-btn" onclick="toggleNotifications()" title="Notifications">🔔<span id="noti-count" class="badge-notif hidden">0</span></button>
-                <div style="position: relative;">
-                    <button class="icon-btn" onclick="toggleSettingsDropdown(event)" title="Settings">⚙️</button>
-                    <div id="settings-dropdown" class="dropdown-menu hidden">
-                        <a href="javascript:void(0);" onclick="openProfileSettingsModal()">Profile Settings</a>
-                        <a href="javascript:void(0);" onclick="logoutUser()">Logout</a>
-                    </div>
-                </div>
-            </div>
-        </header>
+<script>
+    // ---------------- Supabase কনফিগ ----------------
+    const SUPABASE_URL = "https://bytnxoltodeckrmwobgc.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5dG54b2x0b2RlY2tybXdvYmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNjgwNDYsImV4cCI6MjA5NDg0NDA0Nn0.14nw0jHluWSlQTbrguKpHsXwmDjnirUktpJ_RCE9iHs";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        <!-- Notification Panel -->
-        <div id="notification-panel" class="hidden">
-            <h6 style="margin-top:0;">📊 Pending Join Requests</h6>
-            <ul id="requests-list" style="list-style: none; padding: 0; max-height: 250px; overflow-y: auto;"></ul>
-        </div>
+    let currentUser = null;
+    let userGroupIds = [];
+    let unreadCount = 0;
+    let pendingReqCount = 0;
 
-        <div id="app-layout">
-            <div class="sidebar">
-                <div class="sidebar-top">
-                    <h3>Chats</h3>
-                    <button class="add-group-btn" onclick="toggleCreateModal(true)">+</button>
-                </div>
-                <div class="messenger-search-box">
-                    <div class="search-wrapper">
-                        <input type="text" id="search-id" placeholder="Search with unique ID...">
-                        <button onclick="searchGroup()">🔍</button>
-                    </div>
-                    <div id="search-result" class="hidden"></div>
-                </div>
-                <div class="chat-list-container">
-                    <ul id="my-groups-list"></ul>
-                </div>
-            </div>
+    const userBtn = document.getElementById('userBtnMobile');
+    const notifBell = document.getElementById('notifBell');
+    const notifBadge = document.getElementById('notifBadge');
 
-            <div class="main-content" id="chat-main-view">
-                <div id="no-group-selected" style="display: flex; align-items: center; justify-content: center; flex: 1; color: #777;">
-                    <h3>Select a classroom to start learning!</h3>
-                </div>
+    // ---------------- Auth স্টেট ও ইউজার বাটন ----------------
+    async function updateUserButton() {
+        if (!userBtn) return;
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session?.user) {
+            currentUser = session.user;
+            const avatar = currentUser.user_metadata?.avatar_url || 'https://placehold.co/40';
+            const name = currentUser.user_metadata?.name || 'You';
+            userBtn.innerHTML = `<img src="${avatar}" alt="Profile"><span class="user-name">${name}</span>`;
+            notifBell.style.display = 'flex';
+            await loadUserGroupsAndNotifications();
+        } else {
+            currentUser = null;
+            userBtn.innerHTML = '🔐 Login';
+            notifBell.style.display = 'none';
+            notifBadge.classList.add('hidden');
+            notifBadge.innerText = '0';
+            userGroupIds = [];
+        }
+    }
 
-                <div id="active-classroom" class="hidden">
-                    <div class="chat-header">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <button class="back-btn" onclick="backToGroupList()">⬅️</button>
-                            <h4 id="active-group-title">Classroom Name</h4>
-                        </div>
-                        <div class="group-header-btns">
-                            <button onclick="toggleTeacherInviteZone()" title="Add Students">➕ Add</button>
-                            <button onclick="shareGroupLink()" title="Share Link">🔗 Share</button>
-                            <button onclick="startClassCall()" title="Live Class">📞 Live</button>
-                            <button onclick="openGroupMembersModal()" title="Members">👥 Members</button>
-                            <button onclick="openGroupSettingsModal()" title="Settings">⚙️</button>
-                        </div>
-                    </div>
-                    <div id="teacher-invite-zone" class="hidden" style="padding: 8px 15px; background: #e2e8f0; display: flex; gap: 10px;">
-                        <input type="email" id="invite-email" placeholder="Student Email" style="margin:0; flex:1;">
-                        <button onclick="directAddUser()" style="margin:0; background: var(--wa-teal); border:none; white-space:nowrap;">Add Student</button>
-                    </div>
-                    <div class="chat-box" id="chat-messages"></div>
-                    <div class="chat-footer">
-                        <input type="text" id="message-input" placeholder="Type a message...">
-                        <button onclick="sendMessage()">Send</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    async function fetchUserGroupIds() {
+        if (!currentUser) return [];
+        const { data } = await supabaseClient
+            .from('group_members')
+            .select('group_id')
+            .eq('user_id', currentUser.id);
+        return data ? data.map(d => d.group_id) : [];
+    }
 
-    <!-- Modals -->
-    <div id="create-group-modal" class="modal-overlay hidden">
-        <div class="custom-modal">
-            <h4>Create New Classroom</h4>
-            <input type="text" id="group-name" placeholder="Classroom Name">
-            <input type="text" id="group-unique-id" placeholder="Unique ID">
-            <label>Group Banner: <input type="file" id="group-avatar" accept="image/*"></label>
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button class="secondary" onclick="toggleCreateModal(false)">Cancel</button>
-                <button onclick="createGroup()">Create</button>
-            </div>
-        </div>
-    </div>
+    async function getPendingRequestsCount() {
+        if (!currentUser) return 0;
+        const { data: createdGroups } = await supabaseClient
+            .from('groups')
+            .select('id')
+            .eq('creator_id', currentUser.id);
+        if (!createdGroups || createdGroups.length === 0) return 0;
+        const groupIds = createdGroups.map(g => g.id);
+        const { count } = await supabaseClient
+            .from('join_requests')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'pending')
+            .in('group_id', groupIds);
+        return count || 0;
+    }
 
-    <div id="group-members-modal" class="modal-overlay hidden">
-        <div class="custom-modal">
-            <h4>Classroom Members</h4>
-            <div style="max-height: 280px; overflow-y: auto; margin-bottom: 15px;">
-                <ul id="classroom-members-list" style="list-style: none; padding: 0;"></ul>
-            </div>
-            <button class="secondary" onclick="toggleMembersModal(false)">Close</button>
-        </div>
-    </div>
+    async function getUnreadMessageCount() {
+        if (!currentUser || userGroupIds.length === 0) return 0;
+        const lastVisit = localStorage.getItem(`lastVisit_${currentUser.id}`);
+        if (!lastVisit) return 0;
+        const { count } = await supabaseClient
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .in('group_id', userGroupIds)
+            .gt('created_at', lastVisit);
+        return count || 0;
+    }
 
-    <div id="profile-settings-modal" class="modal-overlay hidden">
-        <div class="custom-modal">
-            <h4>Profile Settings</h4>
-            <input type="text" id="profile-name-input" placeholder="Update Full Name">
-            <label>Update Profile Picture: <input type="file" id="profile-avatar-input" accept="image/*"></label>
-            <label style="display: flex; align-items: center; gap: 10px; margin-top: 20px;">
-                <input type="checkbox" id="dark-mode-toggle" onchange="handleDarkModeToggle(this)"> Dark Mode
-            </label>
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button class="secondary" onclick="toggleProfileModal(false)">Cancel</button>
-                <button onclick="saveProfileSettings()">Save</button>
-            </div>
-        </div>
-    </div>
+    async function updateNotificationBadge() {
+        if (!currentUser) return;
+        pendingReqCount = await getPendingRequestsCount();
+        const msgCount = await getUnreadMessageCount();
+        const total = pendingReqCount + msgCount;
+        if (total > 0) {
+            notifBadge.innerText = total > 99 ? '99+' : total;
+            notifBadge.classList.remove('hidden');
+        } else {
+            notifBadge.classList.add('hidden');
+        }
+    }
 
-    <div id="group-settings-modal" class="modal-overlay hidden">
-        <div class="custom-modal">
-            <h4>Classroom Settings</h4>
-            <input type="text" id="edit-group-name" placeholder="Update Name">
-            <label>Update Group Picture: <input type="file" id="edit-group-avatar" accept="image/*"></label>
-            <label>Chat Wallpaper: <input type="file" id="edit-group-wallpaper" accept="image/*"></label>
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button class="secondary" onclick="toggleGroupModal(false)">Cancel</button>
-                <button onclick="saveGroupSettings()">Save</button>
-            </div>
-        </div>
-    </div>
+    async function loadUserGroupsAndNotifications() {
+        if (!currentUser) return;
+        userGroupIds = await fetchUserGroupIds();
+        await updateNotificationBadge();
+        subscribeToRealtimeNotifications();
+    }
 
-    <!-- Profile Picture Preview Modal -->
-    <div id="profile-preview-modal" class="modal-overlay hidden" onclick="this.classList.add('hidden')">
-        <div style="text-align: center; position: relative;">
-            <img id="profile-preview-img" src="" style="max-width: 250px; max-height: 250px; border-radius: 50%; border: 5px solid white; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
-            <p style="color: white; margin-top: 15px; cursor: pointer; text-decoration: underline;" onclick="openProfileSettingsModal(); document.getElementById('profile-preview-modal').classList.add('hidden');">Edit Profile Picture</p>
-        </div>
-    </div>
+    function subscribeToRealtimeNotifications() {
+        if (!currentUser) return;
+        supabaseClient.channel('index-notif')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+                if (userGroupIds.includes(payload.new.group_id)) {
+                    unreadCount++;
+                    const total = pendingReqCount + unreadCount;
+                    if (total > 0) {
+                        notifBadge.innerText = total > 99 ? '99+' : total;
+                        notifBadge.classList.remove('hidden');
+                    }
+                }
+            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'join_requests' }, async payload => {
+                const { data: group } = await supabaseClient
+                    .from('groups')
+                    .select('creator_id')
+                    .eq('id', payload.new.group_id)
+                    .single();
+                if (group && group.creator_id === currentUser.id) {
+                    pendingReqCount++;
+                    const total = pendingReqCount + unreadCount;
+                    if (total > 0) {
+                        notifBadge.innerText = total > 99 ? '99+' : total;
+                        notifBadge.classList.remove('hidden');
+                    }
+                }
+            })
+            .subscribe();
+    }
 
-    <script src="app.js"></script>
-    <script>
-        // Password Toggle
-        function togglePassword(inputId, icon) {
-            const input = document.getElementById(inputId);
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.textContent = '🙈';
+    function goToMyClassroom() {
+        if (currentUser) {
+            localStorage.setItem(`lastVisit_${currentUser.id}`, new Date().toISOString());
+        }
+        window.location.href = 'myclassroom.html';
+    }
+
+    userBtn.addEventListener('click', () => {
+        if (currentUser) {
+            goToMyClassroom();
+        } else {
+            window.location.href = 'myclassroom.html';
+        }
+    });
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        updateUserButton();
+    });
+
+    updateUserButton();
+
+    // ---------------- AI চ্যাট (Gemini) ----------------
+    const API_KEY = "AIzaSyCT_Z2mWsDxv1pQjQ1dxt773nAtZ05RBl0";
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
+
+    function toggleChat() {
+        const c = document.getElementById('chat-container');
+        c.style.display = (c.style.display === 'none' || c.style.display === '') ? 'flex' : 'none';
+    }
+
+    async function askAI() {
+        const input = document.getElementById('user-input');
+        const text = input.value.trim();
+        if (!text) return;
+        appendMsg(text, 'user');
+        input.value = '';
+        const loadDiv = document.createElement('div');
+        loadDiv.className = 'msg ai loading-text';
+        loadDiv.innerText = 'এআই উত্তর খুঁজছে...';
+        document.getElementById('chat-box').appendChild(loadDiv);
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: `তুমি একজন দক্ষ শিক্ষক। শিক্ষার্থীদের জন্য এই প্রশ্নটির সহজ বাংলায় ব্যাখ্যা দাও: ${text}` }] }]
+                })
+            });
+            const data = await res.json();
+            document.getElementById('chat-box').removeChild(loadDiv);
+            if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                appendMsg(data.candidates[0].content.parts[0].text, 'ai');
             } else {
-                input.type = 'password';
-                icon.textContent = '👁️';
+                appendMsg("দুঃখিত, কোনো উত্তর পাওয়া যায়নি।", 'ai');
             }
+        } catch (e) {
+            if (loadDiv.parentNode) loadDiv.parentNode.removeChild(loadDiv);
+            appendMsg("সার্ভার এরর, পরে চেষ্টা করুন।", 'ai');
         }
+    }
 
-        // Static UI toggles
-        function toggleSettingsDropdown(e) { e.stopPropagation(); document.getElementById('settings-dropdown').classList.toggle('hidden'); }
-        document.addEventListener('click', () => document.getElementById('settings-dropdown').classList.add('hidden'));
-        function toggleCreateModal(show) { document.getElementById('create-group-modal').classList.toggle('hidden', !show); }
-        function toggleMembersModal(show) { document.getElementById('group-members-modal').classList.toggle('hidden', !show); }
-        function toggleProfileModal(show) { document.getElementById('profile-settings-modal').classList.toggle('hidden', !show); }
-        function toggleGroupModal(show) { document.getElementById('group-settings-modal').classList.toggle('hidden', !show); }
-        function toggleTeacherInviteZone() { document.getElementById('teacher-invite-zone').classList.toggle('hidden'); }
-        function openProfilePreview() {
-            const img = document.getElementById('header-avatar').src;
-            document.getElementById('profile-preview-img').src = img;
-            document.getElementById('profile-preview-modal').classList.remove('hidden');
-        }
-    </script>
+    function appendMsg(txt, type) {
+        const box = document.getElementById('chat-box');
+        const d = document.createElement('div');
+        d.className = `msg ${type}`;
+        d.innerText = txt;
+        box.appendChild(d);
+        box.scrollTop = box.scrollHeight;
+    }
+    document.getElementById('user-input').addEventListener('keypress', e => { if (e.key==='Enter') askAI(); });
+
+    // ---------------- ক্লাস কার্ড ও নেভিগেশন ----------------
+    const classData = [
+        { name: "প্রথম শ্রেণী", sub: "১ম", url: "class1.html" },
+        { name: "দ্বিতীয় শ্রেণী", sub: "২য়", url: "class2.html" },
+        { name: "তৃতীয় শ্রেণী", sub: "৩য়", url: "class3.html" },
+        { name: "চতুর্থ শ্রেণী", sub: "৪র্থ", url: "class4.html" },
+        { name: "পঞ্চম শ্রেণী", sub: "৫ম", url: "class5.html" },
+        { name: "ষষ্ঠ শ্রেণী", sub: "৬ষ্ঠ", url: "class6.html" },
+        { name: "সপ্তম শ্রেণী", sub: "৭ম", url: "class7.html" },
+        { name: "অষ্টম শ্রেণী", sub: "৮ম", url: "class8.html" },
+        { name: "নবম-দশম", sub: "এসএসসি", url: "class9-10.html" },
+        { name: "একাদশ-দ্বাদশ", sub: "উচ্চ মাধ্যমিক", url: "class11-12.html" }
+    ];
+
+    const grid = document.getElementById('classGrid');
+    classData.forEach(cls => {
+        const card = document.createElement('div');
+        card.className = 'class-card';
+        card.innerHTML = `<div class="class-title">${cls.name}</div><div class="class-sub">${cls.sub}</div>`;
+        card.onclick = () => location.href = cls.url;
+        grid.appendChild(card);
+    });
+
+    // মেনু ইভেন্টস
+    document.getElementById('settingsDesktop').onclick = () => location.href = 'customize.html';
+    document.getElementById('adminDesktop').onclick = () => location.href = 'Support.html';
+    const sideMenu = document.getElementById('sideMenu');
+    const overlay = document.getElementById('menuOverlay');
+    document.getElementById('hamburgerBtn').onclick = () => {
+        sideMenu.classList.add('open'); overlay.classList.add('active'); document.body.style.overflow='hidden';
+    };
+    document.getElementById('closeMenuBtn').onclick = closeMenu;
+    overlay.onclick = closeMenu;
+    document.getElementById('settingsMobileBtn').onclick = () => { closeMenu(); location.href='customize.html'; };
+    document.getElementById('adminMobileBtn').onclick = () => { closeMenu(); location.href='Support.html'; };
+
+    function closeMenu() {
+        sideMenu.classList.remove('open'); overlay.classList.remove('active'); document.body.style.overflow='';
+    }
+    window.addEventListener('resize', () => { if (window.innerWidth>768) closeMenu(); });
+</script>
 </body>
 </html>
