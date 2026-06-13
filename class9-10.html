@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyClass - নবম-দশম শ্রেণি | অনলাইন বই পাঠ</title>
+    <style>
+        :root {
+            /* Light mode (default) */
+            --common-color: #2E7D32;
+            --common-light: #E8F5E9;
+            --common-accent: #4CAF50;
+            --science-color: #1565C0;
+            --science-light: #E3F2FD;
+            --science-accent: #42A5F5;
+            --humanities-color: #6A1B9A;
+            --humanities-light: #F3E5F5;
+            --humanities-accent: #AB47BC;
+            --commerce-color: #E65100;
+            --commerce-light: #FFF3E0;
+            --commerce-accent: #FF7043;
+            --religious-color: #D84315;
+            --religious-light: #FBE9E7;
+            --religious-accent: #FF8A65;
+            --bg: #f0f4f8;
+            --card-bg: #ffffff;
+            --text: #1a1a2e;
+            --text-secondary: #555;
+            --text-light: #777;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            --shadow-hover: 0 12px 36px rgba(0, 0, 0, 0.12);
+            --border: #e8ecf1;
+            --header-bg: linear-gradient(135deg, #0d1b2a 0%, #1b3a4b 40%, #1a5276 100%);
+            --header-text: #ffffff;
+            --book-card-bg: #fafcfd;
+            --book-card-border: #eef1f5;
+            --book-card-hover-bg: #ffffff;
+            --book-card-hover-border: #d0d8e0;
+            --badge-bg: #e8edf2;
+            --badge-text: #444;
+            --modal-overlay-bg: rgba(0, 0, 0, 0.7);
+            --modal-bg: #ffffff;
+            --modal-header-bg: #0d1b2a;
+            --modal-header-text: #ffffff;
+            --footer-text: #888;
+            --footer-border: #e8ecf1;
+            --settings-bg: #ffffff;
+            --settings-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            --toggle-bg: #ccc;
+            --toggle-dot: #fff;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body.dark-mode {
+            --bg: #121212;
+            --card-bg: #1e1e2f;
+            --text: #e0e0e0;
+            --text-secondary: #aaaaaa;
+            --text-light: #999;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            --shadow-hover: 0 12px 36px rgba(0, 0, 0, 0.6);
+            --border: #2a2a3c;
+            --header-bg: linear-gradient(135deg, #0b0f1a 0%, #1a1f35 40%, #1a2a40 100%);
+            --header-text: #e0e0e0;
+            --book-card-bg: #252536;
+            --book-card-border: #2f2f45;
+            --book-card-hover-bg: #2d2d44;
+            --book-card-hover-border: #4a4a6a;
+            --badge-bg: #2a2a3c;
+            --badge-text: #ccc;
+            --modal-overlay-bg: rgba(0, 0, 0, 0.85);
+            --modal-bg: #1e1e2f;
+            --modal-header-bg: #0b0f1a;
+            --modal-header-text: #e0e0e0;
+            --footer-text: #aaa;
+            --footer-border: #2a2a3c;
+            --settings-bg: #252536;
+            --settings-shadow: 0 8px 30px rgba(0,0,0,0.6);
+            --toggle-bg: #555;
+            --toggle-dot: #fff;
+            --religious-color: #FF8A65;
+            --religious-light: #3e2723;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Hind Siliguri', 'Noto Sans Bengali', 'SolaimanLipi', 'Siyam Rupali', 'Vrinda', 'Bangla', Arial, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            color: var(--text);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .header {
+            background: var(--header-bg);
+            color: var(--header-text);
+            position: sticky; top: 0; z-index: 1000;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+            transition: background 0.3s;
+        }
+        .header-inner {
+            max-width: 1300px; margin: 0 auto;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 28px; flex-wrap: wrap; gap: 12px; position: relative;
+        }
+        .logo-area { display: flex; align-items: center; gap: 14px; }
+        .logo-icon {
+            width: 50px; height: 50px; background: #ffb74d; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px; box-shadow: 0 4px 12px rgba(255,183,77,0.4);
+            flex-shrink: 0;
+        }
+        .logo-text h1 { font-size: 1.7rem; font-weight: 700; color: #fff; line-height: 1.2; }
+        .logo-text span { font-size: 0.85rem; color: #bcccdc; letter-spacing: 1px; }
+
+        .header-actions { display: flex; align-items: center; gap: 12px; }
+        .settings-btn {
+            background: rgba(255,255,255,0.15); border: none; color: #fff;
+            width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+            font-size: 22px; display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s, transform 0.2s;
+        }
+        .settings-btn:hover { background: rgba(255,255,255,0.25); transform: rotate(30deg); }
+        .settings-dropdown {
+            position: absolute; top: 100%; right: 0; margin-top: 8px;
+            background: var(--settings-bg); border-radius: 14px;
+            box-shadow: var(--settings-shadow); width: 260px; padding: 16px;
+            z-index: 2000; display: none; flex-direction: column; gap: 14px;
+            border: 1px solid var(--border);
+        }
+        .settings-dropdown.active { display: flex; }
+        .dark-mode-row { display: flex; align-items: center; justify-content: space-between; }
+        .dark-mode-row span { font-weight: 600; color: var(--text); font-size: 0.95rem; }
+        .toggle-switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--toggle-bg); transition: .3s; border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px;
+            background-color: var(--toggle-dot); transition: .3s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #ffb74d; }
+        input:checked + .slider:before { transform: translateX(22px); }
+        .support-links { display: flex; flex-direction: column; gap: 8px; }
+        .support-link {
+            display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+            border: 1.5px solid var(--border); border-radius: 10px;
+            color: var(--text); text-decoration: none; font-weight: 500;
+            transition: 0.2s; font-size: 0.9rem; cursor: pointer;
+        }
+        .support-link:hover { background: #f0f4ff; border-color: #ffb74d; color: #0d1b2a; }
+        body.dark-mode .support-link:hover { background: #2a2a40; color: #ffb74d; }
+
+        .main-container { max-width: 1300px; margin: 0 auto; padding: 28px 20px 50px; }
+        .page-title-section { text-align: center; margin-bottom: 12px; }
+        .page-title-section h2 { font-size: 2rem; font-weight: 700; color: var(--text); }
+        .subtitle { color: var(--text-secondary); }
+        .badge {
+            display: inline-block; background: var(--badge-bg); color: var(--badge-text);
+            padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; margin-top: 6px;
+        }
+
+        .division-section {
+            margin-bottom: 36px; background: var(--card-bg); border-radius: var(--radius);
+            box-shadow: var(--shadow); overflow: hidden; border: 1px solid var(--border);
+            transition: var(--transition);
+        }
+        .division-header {
+            padding: 18px 26px; display: flex; align-items: center; gap: 14px;
+            cursor: pointer; user-select: none; transition: background 0.2s;
+        }
+        .division-header:hover { background: rgba(0,0,0,0.02); }
+        .division-icon {
+            width: 48px; height: 48px; border-radius: 14px; display: flex;
+            align-items: center; justify-content: center; font-size: 26px;
+            flex-shrink: 0; box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        }
+        .icon-common { background: var(--common-light); color: var(--common-color); }
+        .icon-science { background: var(--science-light); color: var(--science-color); }
+        .icon-humanities { background: var(--humanities-light); color: var(--humanities-color); }
+        .icon-commerce { background: var(--commerce-light); color: var(--commerce-color); }
+        .icon-religious { background: var(--religious-light); color: var(--religious-color); }
+
+        .division-title-area h3 { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+        .book-count { font-size: 0.82rem; color: var(--text-light); }
+        .division-arrow { margin-left: auto; font-size: 1.2rem; color: #999; transition: transform 0.3s; }
+        .division-section.open .division-arrow { transform: rotate(180deg); }
+        .division-section.open .division-header { border-bottom: 1px solid var(--border); }
+        .book-grid-wrapper { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s ease; }
+        .division-section.open .book-grid-wrapper { grid-template-rows: 1fr; }
+        .book-grid-inner { overflow: hidden; }
+        .book-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+            gap: 18px; padding: 22px 26px;
+        }
+
+        .book-card {
+            background: var(--book-card-bg); border-radius: var(--radius-sm);
+            padding: 20px 18px; cursor: pointer; transition: var(--transition);
+            border: 1.5px solid var(--book-card-border); text-align: center;
+            position: relative; overflow: hidden; display: flex; flex-direction: column;
+            align-items: center; gap: 10px; min-height: 170px; justify-content: center;
+        }
+        .book-card:hover {
+            transform: translateY(-5px); box-shadow: 0 14px 32px rgba(0,0,0,0.15);
+            border-color: var(--book-card-hover-border); background: var(--book-card-hover-bg);
+        }
+        .book-card:active { transform: scale(0.97); }
+        .book-emoji { font-size: 42px; transition: transform 0.3s; }
+        .book-card:hover .book-emoji { transform: scale(1.15); }
+        .book-name { font-weight: 600; font-size: 1rem; color: var(--text); }
+        .read-badge {
+            display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem;
+            color: #888; background: #f0f3f5; padding: 5px 12px; border-radius: 15px;
+        }
+        .book-card:hover .read-badge { background: #e3f2fd; color: #1565C0; }
+        .card-stripe { position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+        .stripe-common { background: var(--common-accent); }
+        .stripe-science { background: var(--science-accent); }
+        .stripe-humanities { background: var(--humanities-accent); }
+        .stripe-commerce { background: var(--commerce-accent); }
+        .stripe-religious { background: var(--religious-accent); }
+
+        /* Modal same as before */
+        .modal-overlay {
+            position: fixed; inset: 0; background: var(--modal-overlay-bg);
+            z-index: 2000; display: flex; align-items: center; justify-content: center;
+            padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.35s;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal {
+            background: var(--modal-bg); border-radius: 18px; width: 100%;
+            max-width: 1050px; height: 90vh; display: flex; flex-direction: column;
+            overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+            transform: translateY(30px); transition: transform 0.35s;
+        }
+        .modal-overlay.active .modal { transform: translateY(0); }
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 22px; background: var(--modal-header-bg); color: var(--modal-header-text);
+        }
+        .btn {
+            padding: 9px 18px; border-radius: 22px; border: none; cursor: pointer;
+            font-weight: 600; font-size: 0.85rem; transition: var(--transition);
+            font-family: inherit; white-space: nowrap;
+        }
+        .btn-new-tab { background: #ffb74d; color: #0d1b2a; }
+        .btn-close { background: rgba(255,255,255,0.15); color: #fff; }
+        .modal-body { flex: 1; overflow: hidden; position: relative; background: #525659; }
+        .modal-body iframe { width: 100%; height: 100%; border: none; }
+        .iframe-fallback {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: #fff; text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .header-inner { padding: 12px 16px; }
+            .logo-text h1 { font-size: 1.35rem; }
+            .book-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 14px 12px; }
+            .book-card { padding: 16px 10px; min-height: 140px; }
+            .modal-overlay { padding: 0; }
+            .modal { max-width: 100%; height: 100vh; border-radius: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo-area">
+                <div class="logo-icon">📚</div>
+                <div class="logo-text">
+                    <h1>MyClass</h1>
+                    <span>অনলাইন বই পাঠ প্ল্যাটফর্ম</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="settings-btn" id="settingsBtn">⚙️</button>
+                <div class="settings-dropdown" id="settingsDropdown">
+                    <div class="dark-mode-row">
+                        <span>🌙 ডার্ক মোড</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="darkModeToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="support-links">
+                        <a href="support.html" class="support-link">🔍 আপনার নির্দিষ্ট বইটি খুঁজে পাচ্ছেন না?</a>
+                        <a href="support.html" class="support-link">🛟 অ্যাডমিন হেল্প</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <div class="page-title-section">
+            <h2>📖 নবম-দশম শ্রেণির সকল বই</h2>
+            <p class="subtitle">আপনার পছন্দের বইটি নির্বাচন করে অনলাইনে পড়ুন</p>
+            <span class="badge">📚 মোট ২৬টি বই • ৫টি বিভাগ</span>
+        </div>
+
+        <!-- সকল বিভাগের জন্য (Common) -->
+        <div class="division-section open" id="sec-common">
+            <div class="division-header" onclick="toggleSection('sec-common')">
+                <div class="division-icon icon-common">📘</div>
+                <div class="division-title-area">
+                    <h3>সকল বিভাগের জন্য (আবশ্যিক)</h3>
+                    <span class="book-count">৯টি বই</span>
+                </div><span class="division-arrow">▼</span>
+            </div>
+            <div class="book-grid-wrapper"><div class="book-grid-inner"><div class="book-grid">
+                <div class="book-card" onclick="openBook('বাংলা সাহিত্য', '1tD8bWwbYeFMl_5t9e-O84p69LsBLWsVK')"><div class="card-stripe stripe-common"></div><span class="book-emoji">📗</span><span class="book-name">বাংলা সাহিত্য</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('বাংলা ভাষার ব্যাকরণ ও নির্মিতি', '1G7LMfoPE_ZRm88BBJxjZfO6iy6YvmyiL')"><div class="card-stripe stripe-common"></div><span class="book-emoji">📝</span><span class="book-name">বাংলা ব্যাকরণ</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('বাংলা সহপাঠ', '14C1nuuMjUcsDnEIJzpKZIUxabllwXpcA')"><div class="card-stripe stripe-common"></div><span class="book-emoji">📕</span><span class="book-name">বাংলা সহপাঠ</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('English for Today', '1nZHmlcYcwJuGonRweI2iSmc6imkUKEip')"><div class="card-stripe stripe-common"></div><span class="book-emoji">🔤</span><span class="book-name">English for Today</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('English Grammar', '1WmH8HAKSFej_WZ5v24LwAFjaD3TfL2wG')"><div class="card-stripe stripe-common"></div><span class="book-emoji">📓</span><span class="book-name">English Grammar</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('গণিত', '1o-aoEh4jShwnKTQ_JpzbzOYMI9UGvho7')"><div class="card-stripe stripe-common"></div><span class="book-emoji">🔢</span><span class="book-name">গণিত</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('তথ্য ও যোগাযোগ প্রযুক্তি', '156VfHtVaTh5eM6NxuUhUVLbuLSMOTCSb')"><div class="card-stripe stripe-common"></div><span class="book-emoji">💻</span><span class="book-name">তথ্য ও যোগাযোগ প্রযুক্তি</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('বাংলাদেশ ও বিশ্বপরিচয়', '1SYmcyTv_QzHK6IooIWDwd1tV-d16ZBBY')"><div class="card-stripe stripe-common"></div><span class="book-emoji">🌐</span><span class="book-name">বাংলাদেশ ও বিশ্বপরিচয়</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('কেরিয়ার শিক্ষা', '1IuMvguZB4UHdIutZOqT68YVCoqCI0NVI')"><div class="card-stripe stripe-common"></div><span class="book-emoji">🎯</span><span class="book-name">কেরিয়ার শিক্ষা</span><span class="read-badge">📖 পড়ুন</span></div>
+            </div></div></div>
+        </div>
+
+        <!-- বিজ্ঞান বিভাগ -->
+        <div class="division-section open" id="sec-science">
+            <div class="division-header" onclick="toggleSection('sec-science')">
+                <div class="division-icon icon-science">🔬</div>
+                <div class="division-title-area">
+                    <h3>বিজ্ঞান বিভাগ</h3>
+                    <span class="book-count">৪টি বই</span>
+                </div><span class="division-arrow">▼</span>
+            </div>
+            <div class="book-grid-wrapper"><div class="book-grid-inner"><div class="book-grid">
+                <div class="book-card" onclick="openBook('পদার্থ বিজ্ঞান', '18Fb3IZE50gdQko-ZBf22iYc8YkRIjEFj')"><div class="card-stripe stripe-science"></div><span class="book-emoji">⚡</span><span class="book-name">পদার্থ বিজ্ঞান</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('রসায়ন', '1e9wr08rjWavwLbtvpIqXCyre3byoCXV-')"><div class="card-stripe stripe-science"></div><span class="book-emoji">⚗️</span><span class="book-name">রসায়ন</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('জীববিজ্ঞান', '1SSPJ3Dgkdniw_Rq39fKrrsIorLX43UcE')"><div class="card-stripe stripe-science"></div><span class="book-emoji">🧬</span><span class="book-name">জীববিজ্ঞান</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('উচ্চতর গণিত', '1Rv_XFCv0dCK2JXVaNdoQ-pibN0PCo3y3')"><div class="card-stripe stripe-science"></div><span class="book-emoji">📐</span><span class="book-name">উচ্চতর গণিত</span><span class="read-badge">📖 পড়ুন</span></div>
+            </div></div></div>
+        </div>
+
+        <!-- মানবিক বিভাগ -->
+        <div class="division-section open" id="sec-humanities">
+            <div class="division-header" onclick="toggleSection('sec-humanities')">
+                <div class="division-icon icon-humanities">🎭</div>
+                <div class="division-title-area">
+                    <h3>মানবিক বিভাগ</h3>
+                    <span class="book-count">৪টি বই</span>
+                </div><span class="division-arrow">▼</span>
+            </div>
+            <div class="book-grid-wrapper"><div class="book-grid-inner"><div class="book-grid">
+                <div class="book-card" onclick="openBook('অর্থনীতি', '1SdabBm8sQFbjCQtTb_kqIXF-oee8SLtu')"><div class="card-stripe stripe-humanities"></div><span class="book-emoji">💰</span><span class="book-name">অর্থনীতি</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('পৌরনীতি ও নাগরিকতা', '1672BCMLZbvpClO1YjfICrMuq-3eQCOng')"><div class="card-stripe stripe-humanities"></div><span class="book-emoji">🏛️</span><span class="book-name">পৌরনীতি ও নাগরিকতা</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('ভূগোল ও পরিবেশ', '1RqBX6HfNXf4K665z1-deXpL8Q_WnEjpa')"><div class="card-stripe stripe-humanities"></div><span class="book-emoji">🌍</span><span class="book-name">ভূগোল ও পরিবেশ</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('সাধারণ বিজ্ঞান', '1A3Zx-KN1qRNolpwoyxy-vdVe7Om1TKWF')"><div class="card-stripe stripe-humanities"></div><span class="book-emoji">🔍</span><span class="book-name">সাধারণ বিজ্ঞান</span><span class="read-badge">📖 পড়ুন</span></div>
+            </div></div></div>
+        </div>
+
+        <!-- ব্যবসায় শিক্ষা -->
+        <div class="division-section open" id="sec-commerce">
+            <div class="division-header" onclick="toggleSection('sec-commerce')">
+                <div class="division-icon icon-commerce">💼</div>
+                <div class="division-title-area">
+                    <h3>ব্যবসায় শিক্ষা (বাণিজ্য)</h3>
+                    <span class="book-count">৩টি বই</span>
+                </div><span class="division-arrow">▼</span>
+            </div>
+            <div class="book-grid-wrapper"><div class="book-grid-inner"><div class="book-grid">
+                <div class="book-card" onclick="openBook('হিসাব বিজ্ঞান', '1rw812Gzo2I8qG2W6nRwRZheyoZgTU8Kv')"><div class="card-stripe stripe-commerce"></div><span class="book-emoji">📋</span><span class="book-name">হিসাব বিজ্ঞান</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('ফিন্যান্স ও ব্যাংকিং', '1Iny9O0uaT6utBQH7mns10FlOSq0wfd5h')"><div class="card-stripe stripe-commerce"></div><span class="book-emoji">🏦</span><span class="book-name">ফিন্যান্স ও ব্যাংকিং</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('ব্যবসায় উদ্যোগ', '1AAEdacpkUcUyfIw4_nsmb2WxtaVbm8WM')"><div class="card-stripe stripe-commerce"></div><span class="book-emoji">📈</span><span class="book-name">ব্যবসায় উদ্যোগ</span><span class="read-badge">📖 পড়ুন</span></div>
+            </div></div></div>
+        </div>
+
+        <!-- ধর্ম শিক্ষা -->
+        <div class="division-section open" id="sec-religious">
+            <div class="division-header" onclick="toggleSection('sec-religious')">
+                <div class="division-icon icon-religious">🕊️</div>
+                <div class="division-title-area">
+                    <h3>ধর্ম শিক্ষা (নিজ নিজ ধর্ম নির্বাচন করুন)</h3>
+                    <span class="book-count">৪টি বই</span>
+                </div><span class="division-arrow">▼</span>
+            </div>
+            <div class="book-grid-wrapper"><div class="book-grid-inner"><div class="book-grid">
+                <div class="book-card" onclick="openBook('ইসলাম শিক্ষা', '1Jcr5SkJzI9NoYsNW8jEfgZ6Emi0cqTfx')"><div class="card-stripe stripe-religious"></div><span class="book-emoji">☪️</span><span class="book-name">ইসলাম শিক্ষা</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('হিন্দু ধর্ম শিক্ষা', '1j7cupDgXFJuXmu0uUNZgbrQSRFxms5ho')"><div class="card-stripe stripe-religious"></div><span class="book-emoji">🕉️</span><span class="book-name">হিন্দু ধর্ম শিক্ষা</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('বৌদ্ধ ধর্ম শিক্ষা', '1SGFiDNBfBdof3Oj3863Uk5fDjayVslQe')"><div class="card-stripe stripe-religious"></div><span class="book-emoji">☸️</span><span class="book-name">বৌদ্ধ ধর্ম শিক্ষা</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('খ্রিষ্ট ধর্ম শিক্ষা', '14BTGsY12D6AH2RH3sRJA7a-Yz7-U1EUL')"><div class="card-stripe stripe-religious"></div><span class="book-emoji">✝️</span><span class="book-name">খ্রিষ্ট ধর্ম শিক্ষা</span><span class="read-badge">📖 পড়ুন</span></div>
+            </div></div></div>
+        </div>
+
+        <!-- অন্যান্য (ঐচ্ছিক) -->
+        <div class="division-section open" id="sec-optional">
+            <div class="division-header" onclick="toggleSection('sec-optional')">
+                <div class="division-icon" style="background:#FFF8E1;color:#F57F17;">📦</div>
+                <div class="division-title-area">
+                    <h3>অন্যান্য (ঐচ্ছিক / ভোকেশনাল)</h3>
+                    <span class="book-count">২টি বই</span>
+                </div><span class="division-arrow">▼</span>
+            </div>
+            <div class="book-grid-wrapper"><div class="book-grid-inner"><div class="book-grid">
+                <div class="book-card" onclick="openBook('কৃষি শিক্ষা', '153U3ZT8z8T1okd-PqJA_f4ffCj5ucccO')"><div class="card-stripe" style="background:#8D6E63;"></div><span class="book-emoji">🌾</span><span class="book-name">কৃষি শিক্ষা</span><span class="read-badge">📖 পড়ুন</span></div>
+                <div class="book-card" onclick="openBook('গার্হস্থ্য বিজ্ঞান', '1-zB0R-UVQ6Nl5PmfaRnIpFv00C8q7hJz')"><div class="card-stripe" style="background:#EC407A;"></div><span class="book-emoji">🧵</span><span class="book-name">গার্হস্থ্য বিজ্ঞান</span><span class="read-badge">📖 পড়ুন</span></div>
+            </div></div></div>
+        </div>
+    </main>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">📖 বই পড়ুন</h3>
+                <div class="btn-group">
+                    <button class="btn btn-new-tab" id="btnNewTab">🔗 নতুন ট্যাবে খুলুন</button>
+                    <button class="btn btn-close" onclick="closeModal()">✕ বন্ধ করুন</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <iframe id="bookIframe" src="" allowfullscreen loading="lazy"></iframe>
+                <div class="iframe-fallback" id="iframeFallback" style="display:none;">
+                    <span style="font-size:60px;">📕</span>
+                    <p>বইটি সরাসরি লোড না হলে নিচের বাটনে ক্লিক করুন।</p>
+                    <button class="btn btn-new-tab" id="btnFallbackOpen">🔗 Google Drive-এ খুলুন</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer" style="text-align:center;padding:20px;color:var(--footer-text);border-top:1px solid var(--footer-border);margin-top:20px;">
+        <p>© ২০২৬ <strong>MyClass</strong> — নবম-দশম শ্রেণির বই</p>
+    </footer>
+
+    <script>
+        const body = document.body;
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsDropdown = document.getElementById('settingsDropdown');
+        const darkModeToggle = document.getElementById('darkModeToggle');
+
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            settingsDropdown.classList.toggle('active');
+        });
+        document.addEventListener('click', (e) => {
+            if (!settingsBtn.contains(e.target) && !settingsDropdown.contains(e.target)) {
+                settingsDropdown.classList.remove('active');
+            }
+        });
+
+        if (localStorage.getItem('myclass_dark_mode') === 'true') {
+            body.classList.add('dark-mode');
+            darkModeToggle.checked = true;
+        }
+        darkModeToggle.addEventListener('change', () => {
+            if (darkModeToggle.checked) {
+                body.classList.add('dark-mode');
+                localStorage.setItem('myclass_dark_mode', 'true');
+            } else {
+                body.classList.remove('dark-mode');
+                localStorage.setItem('myclass_dark_mode', 'false');
+            }
+        });
+
+        function toggleSection(id) {
+            document.getElementById(id).classList.toggle('open');
+        }
+
+        function openBook(name, fileId) {
+            document.getElementById('modalTitle').textContent = '📖 ' + name;
+            const preview = 'https://drive.google.com/file/d/' + fileId + '/preview';
+            const direct = 'https://drive.google.com/file/d/' + fileId + '/view?usp=drive_link';
+            const iframe = document.getElementById('bookIframe');
+            const fallback = document.getElementById('iframeFallback');
+            iframe.src = preview; iframe.style.display = 'block'; fallback.style.display = 'none';
+            document.getElementById('btnNewTab').onclick = () => window.open(direct, '_blank');
+            document.getElementById('btnFallbackOpen').onclick = () => window.open(direct, '_blank');
+            document.getElementById('modalOverlay').classList.add('active');
+            document.body.style.overflow = 'hidden';
+            clearTimeout(window._iframeTimeout);
+            window._iframeTimeout = setTimeout(() => {
+                try {
+                    const doc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (!doc || doc.body.innerHTML.trim() === '') showFallback();
+                } catch(e){}
+            }, 8000);
+        }
+        function showFallback() {
+            document.getElementById('bookIframe').style.display = 'none';
+            document.getElementById('iframeFallback').style.display = 'flex';
+        }
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
+            document.body.style.overflow = '';
+            setTimeout(() => {
+                document.getElementById('bookIframe').src = '';
+                document.getElementById('bookIframe').style.display = 'block';
+                document.getElementById('iframeFallback').style.display = 'none';
+            }, 400);
+        }
+        document.getElementById('modalOverlay').addEventListener('click', function(e) { if(e.target === this) closeModal(); });
+        document.addEventListener('keydown', (e) => { if(e.key==='Escape') closeModal(); });
+        document.getElementById('bookIframe').addEventListener('error', showFallback);
+    </script>
+</body>
+</html>
