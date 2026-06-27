@@ -8,10 +8,10 @@ let currentUser = null;
 let activeGroupId = null;
 let activeGroupCreatorId = null;
 let activeGroupUniqueId = null;
-let currentUserRoleInActiveGroup = null; // মেম্বার পারমিশন ও রোল ট্র্যাক করার জন্য
+let currentUserRoleInActiveGroup = null;
+let chatPollingInterval = null; // 🆕 SHORT POLLING INTERVAL
 
 document.addEventListener("DOMContentLoaded", () => {
-    // ডার্ক মোড আগে থেকে ইন্যাবল থাকলে সেটা অ্যাপ্লাই করা
     if (localStorage.getItem('darkMode') === 'enabled') {
         document.body.classList.add('dark-mode');
     }
@@ -22,7 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
             showApp();
             loadMyGroups();
             listenToRealtimeData();
-            checkUrlForJoinRequest(); // শেয়ার লিংকের মাধ্যমে কেউ আসলে তা হ্যান্ডেল করার ফাংশন
+            checkUrlForJoinRequest();
         } else {
             showAuth();
         }
@@ -34,18 +34,14 @@ function toggleAuthForms(showSignup) {
     document.getElementById('signup-form').classList.toggle('hidden', !showSignup);
 }
 
-// ================= 🔗 SHARED LINK AUTO-JOIN DETECTOR =================
-// ================= 🔗 SHARED LINK AUTO-JOIN DETECTOR (FIXED) =================
 async function checkUrlForJoinRequest() {
     const urlParams = new URLSearchParams(window.location.search);
     const groupIdToJoin = urlParams.get('joinGroup');
     
     if (groupIdToJoin && currentUser) {
-        // ইউআরএল ক্লিন করা যাতে পেজ রিফ্রেশ দিলে বারবার লুপ না হয়
         const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
         window.history.pushState({ path: cleanUrl }, '', cleanUrl);
 
-        // ১. চেক করা ইউজার অলরেডি এই ক্লাসের মেম্বার বা শিক্ষক কিনা
         const { data: isMember } = await supabaseClient
             .from('group_members')
             .select('role')
@@ -54,7 +50,6 @@ async function checkUrlForJoinRequest() {
             .maybeSingle();
 
         if (isMember) {
-            // অলরেডি মেম্বার হলে সরাসরি ক্লাস ডাটা নিয়ে চ্যাট ওপেন হবে
             const { data: group } = await supabaseClient.from('groups').select('*').eq('id', groupIdToJoin).single();
             if (group) {
                 openClassroom(group.id, group.group_name, group.creator_id, group.unique_id);
@@ -63,7 +58,6 @@ async function checkUrlForJoinRequest() {
             return;
         }
 
-        // ২. মেম্বার না হলে জয়েন রিকোয়েস্ট পাঠানো
         const { error } = await supabaseClient
             .from('join_requests')
             .insert([{ group_id: groupIdToJoin, user_id: currentUser.id }]);
@@ -76,7 +70,6 @@ async function checkUrlForJoinRequest() {
     }
 }
 
-// ================= AUTHENTICATION =================
 async function registerUser() {
     const name = document.getElementById('signup-name').value;
     const email = document.getElementById('signup-email').value;
@@ -123,7 +116,6 @@ async function logoutUser() {
     location.reload(); 
 }
 
-// ================= 👤 USER PROFILE SETTINGS & DARK MODE =================
 function openProfileSettingsModal() {
     document.getElementById('profile-name-input').value = currentUser.user_metadata.name || "";
     const isDark = document.body.classList.contains('dark-mode');
@@ -162,12 +154,11 @@ async function saveProfileSettings() {
     } else {
         alert("Profile updated successfully!");
         currentUser = data.user;
-        showApp(); // হেডার রেন্ডার রিফ্রেশ
+        showApp();
         toggleProfileModal(false);
     }
 }
 
-// ================= 🏫 CLASSROOM GROUPS & WHATSAPP SORTING =================
 async function createGroup() {
     const name = document.getElementById('group-name').value;
     const uniqueId = document.getElementById('group-unique-id').value.trim();
@@ -252,7 +243,7 @@ async function loadMyGroups() {
         `;
     });
 }
-// ================= ⚙️ GROUP SETTINGS (TEACHER / ADMIN CONTROL) =================
+
 function openGroupSettingsModal() {
     if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') {
         alert("Only Teachers and Admins can modify classroom settings!");
@@ -289,7 +280,7 @@ async function saveGroupSettings() {
     } else {
         alert("Classroom settings updated successfully!");
         toggleGroupModal(false);
-        loadMyGroups(); // সাইডবার রিফ্রেশ
+        loadMyGroups();
         
         if (newName) document.getElementById('active-group-title').innerText = newName;
         if (updateData.wallpaper_url) {
@@ -298,7 +289,6 @@ async function saveGroupSettings() {
     }
 }
 
-// ================= 👥 GROUP MEMBERS & MULTI-ADMIN LOGIC =================
 async function openGroupMembersModal() {
     if (!activeGroupId) return;
     
@@ -324,11 +314,9 @@ async function openGroupMembersModal() {
         
         let actionButtonHtml = "";
         
-        // যদি মেম্বার স্টুডেন্ট হয় এবং কারেন্ট ইউজার টিচার/এডমিন হয় -> Make Admin বাটন দেখাবে
         if (member.role === 'student' && canPromote) {
             actionButtonHtml = `<button class="make-admin-btn" onclick="makeMemberAdmin('${member.user_id}')">Make Admin</button>`;
         } 
-        // যদি মেম্বার অলরেডি এডমিন হয় এবং মেইন 'টিচার' তাকে বাদ দিতে চায় -> Remove Admin বাটন দেখাবে
         else if (member.role === 'admin' && isCurrentTeacher) {
             actionButtonHtml = `<button class="remove-admin-btn" style="background:#e74c3c; color:white; border:none; padding:4px 12px; border-radius:15px; font-size:12px; cursor:pointer;" onclick="removeMemberAdmin('${member.user_id}')">Remove Admin</button>`;
         }
@@ -346,6 +334,7 @@ async function openGroupMembersModal() {
     
     toggleMembersModal(true);
 }
+
 async function makeMemberAdmin(memberUserId) {
     if (confirm("Are you sure you want to make this member a Group Admin?")) {
         const { error } = await supabaseClient
@@ -358,7 +347,7 @@ async function makeMemberAdmin(memberUserId) {
             alert("Failed to assign admin role: " + error.message);
         } else {
             alert("Member promoted to Admin successfully!");
-            openGroupMembersModal(); // রিফ্রেশ লিস্ট
+            openGroupMembersModal();
         }
     }
 }
@@ -367,7 +356,7 @@ async function removeMemberAdmin(memberUserId) {
     if (confirm("Are you sure you want to remove Admin rights from this member?")) {
         const { error } = await supabaseClient
             .from('group_members')
-            .update({ role: 'student' }) // রোল পরিবর্তন করে আবার স্টুডেন্ট বানিয়ে দেওয়া হলো
+            .update({ role: 'student' })
             .eq('group_id', activeGroupId)
             .eq('user_id', memberUserId);
             
@@ -375,11 +364,11 @@ async function removeMemberAdmin(memberUserId) {
             alert("Failed to remove admin role: " + error.message);
         } else {
             alert("Admin role removed successfully!");
-            openGroupMembersModal(); // মেম্বার লিস্ট রিফ্রেশ করা
+            openGroupMembersModal();
         }
     }
 }
-// ================= MESSENGER STYLE ID SEARCH =================
+
 async function searchGroup() {
     const uniqueId = document.getElementById('search-id').value.trim();
     const resultDiv = document.getElementById('search-result');
@@ -414,23 +403,18 @@ async function sendJoinRequest(groupId) {
     }
 }
 
-// ================= 🔗 GENERATE & COPY SHARE LINK =================
 function shareGroupLink() {
     if (!activeGroupId) return;
     
-    // বর্তমান ইউআরএল ট্র্যাক করে তার সাথে joinGroup প্যারামিটার হিসেবে মেইন ID জোড়া হচ্ছে
     const shareUrl = `${window.location.origin}${window.location.pathname}?joinGroup=${activeGroupId}`;
     
     navigator.clipboard.writeText(shareUrl).then(() => {
         alert("Classroom join link copied to clipboard! Anyone with this link can request to join after login.");
     }).catch(err => {
-        // সেফটি ব্যাকআপ (যদি ব্রাউজার ক্লিপবোর্ড পারমিশন ব্লক করে)
         alert("Copy failed! Please manually share this link: " + shareUrl);
     });
 }
 
-// ================= NOTIFICATIONS =================
-// ================= BEAUTIFIED REQUESTS LIST =================
 async function loadNotifications() {
     const { data } = await supabaseClient
         .from('join_requests')
@@ -463,6 +447,7 @@ async function loadNotifications() {
         list.innerHTML = `<li style="text-align: center; color: #777; padding: 10px 0; font-size:13px;">No pending requests</li>`;
     }
 }
+
 async function actionRequest(reqId, status) {
     if (status === 'accepted') {
         const { data: reqData } = await supabaseClient.from('join_requests').select('*').eq('id', reqId).single();
@@ -473,7 +458,6 @@ async function actionRequest(reqId, status) {
     loadMyGroups();
 }
 
-// ================= DIRECT EMAIL INVITE =================
 async function directAddUser() {
     const email = document.getElementById('invite-email').value.trim();
     if (!email) { alert("Please enter a student email!"); return; }
@@ -490,19 +474,33 @@ async function directAddUser() {
     }
 }
 
-// ================= CHAT LOGIC =================
+// 🆕 SHORT POLLING: This function is modified with the interval
 async function openClassroom(id, name, creatorId, uniqueId) {
-    activeGroupId = id; activeGroupCreatorId = creatorId; activeGroupUniqueId = uniqueId;
+    // Clear existing interval
+    if (chatPollingInterval) {
+        clearInterval(chatPollingInterval);
+        chatPollingInterval = null;
+    }
+    
+    activeGroupId = id; 
+    activeGroupCreatorId = creatorId; 
+    activeGroupUniqueId = uniqueId;
+    
     document.getElementById('no-group-selected').classList.add('hidden');
     document.getElementById('active-classroom').classList.remove('hidden');
     document.getElementById('active-group-title').innerText = name;
-    
-    // সাদ ভাই, আপনার রিকোয়ারমেন্ট অনুযায়ী এখানে ইউনিক আইডি শো হবে
     document.getElementById('active-group-id-display').innerText = `ID: ${uniqueId}`;
-
     document.getElementById('app-layout').classList.add('chat-open');
 
-    // ক্লাসরুমের ব্যাকগ্রাউন্ড ওয়ালপেপার লোড করা
+    // Set new polling interval
+    chatPollingInterval = setInterval(() => {
+        if (activeGroupId) {
+            loadMessages();
+            loadMyGroups();
+        }
+    }, 4000);
+
+    // Load wallpaper
     const { data: groupDetails } = await supabaseClient.from('groups').select('wallpaper_url').eq('id', id).single();
     if (groupDetails && groupDetails.wallpaper_url) {
         document.getElementById('chat-main-view').style.backgroundImage = `url('${groupDetails.wallpaper_url}')`;
@@ -510,7 +508,7 @@ async function openClassroom(id, name, creatorId, uniqueId) {
         document.getElementById('chat-main-view').style.backgroundImage = ''; 
     }
 
-    // কারেন্ট ইউজারের রোল চেক
+    // Check current user's role
     const { data: memberRoleData } = await supabaseClient
         .from('group_members')
         .select('role')
@@ -520,13 +518,12 @@ async function openClassroom(id, name, creatorId, uniqueId) {
 
     currentUserRoleInActiveGroup = memberRoleData ? memberRoleData.role : 'student';
 
-    // রোল অনুযায়ী কন্ট্রোল বাটন হ্যান্ডেল করা
+    // Role-based control buttons
     if (currentUserRoleInActiveGroup === 'teacher' || currentUserRoleInActiveGroup === 'admin') {
         document.getElementById('toggle-invite-btn').classList.remove('hidden');
         document.getElementById('call-btn').innerText = "Live Class";
         document.getElementById('call-btn').disabled = false;
     } else {
-        // স্টুডেন্ট হলে ইনপুট টগল করার বাটন ও সেকশন দুটোই সম্পূর্ণ ব্লক থাকবে
         document.getElementById('toggle-invite-btn').classList.add('hidden');
         document.getElementById('teacher-invite-zone').classList.add('hidden');
         document.getElementById('call-btn').innerText = "Live Waiting...";
@@ -539,16 +536,13 @@ function backToGroupList() {
     document.getElementById('app-layout').classList.remove('chat-open');
 }
 
-// ================= CHAT MESSAGING (FIXED) =================
 async function sendMessage() {
     const input = document.getElementById('message-input');
     const messageText = input.value.trim();
     
-    // মেসেজ টেক্সট অথবা একটিভ গ্রুপ আইডি না থাকলে রিটার্ন করবে
     if (!messageText || !activeGroupId) return;
 
     try {
-        // ১. সুপাবেসে মেসেজ পাঠানো (সঠিক ক্লায়েন্ট, কলাম এবং গ্রুপ আইডি সহ)
         const { data, error } = await supabaseClient
             .from('messages') 
             .insert([{ 
@@ -556,7 +550,7 @@ async function sendMessage() {
                 sender_id: currentUser.id,
                 group_id: activeGroupId 
             }])
-            .select(); // নতুন মেসেজের ডেটা রিটার্ন করবে
+            .select();
 
         if (error) {
             console.error("Supabase Error:", error);
@@ -564,14 +558,12 @@ async function sendMessage() {
             return;
         }
 
-        // ২. পেজ রিফ্রেশ না করে সাথে সাথে স্ক্রিনে মেসেজ লোড করা
         if (typeof loadMessages === "function") {
             await loadMessages(); 
         }
 
-        input.value = ''; // ইনপুট বক্স খালি করা
+        input.value = ''; 
         
-        // চ্যাট বক্স স্বয়ংক্রিয়ভাবে স্ক্রল করে নিচে নামানো
         const chatBox = document.getElementById('chat-messages');
         if (chatBox) {
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -597,11 +589,9 @@ async function loadMessages() {
             const isMe = msg.sender_id === currentUser.id;
             let messageContentHtml = "";
 
-            // 🔔 চেক করা হচ্ছে এটা কি লাইভ ক্লাসের স্পেশাল মেসেজ কিনা
             if (msg.message_text.startsWith('[LIVE_CLASS_STARTED]')) {
                 const callUrl = msg.message_text.replace('[LIVE_CLASS_STARTED]', '');
                 
-                // সুন্দর একটি বাটন কার্ড ডিজাইন
                 messageContentHtml = `
                     <div style="background: var(--card-bg); border-left: 5px solid #d32f2f; padding: 12px; border-radius: 8px; margin-top: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
                         <strong style="color: #d32f2f; display: block; margin-bottom: 5px;">🔴 The Class Has Started!</strong>
@@ -612,11 +602,9 @@ async function loadMessages() {
                     </div>
                 `;
             } else {
-                // সাধারণ টেক্সট মেসেজ
                 messageContentHtml = `<div class="text">${msg.message_text}</div>`;
             }
 
-            // চ্যাট বক্সে মেসেজ বা বাটন পুশ করা
             chatBox.innerHTML += `
                 <div class="msg-row ${isMe ? 'me' : 'them'}">
                     <div class="bubble">
@@ -635,37 +623,30 @@ function startClassCall() {
         return;
     }
 
-    // তোমার নিজস্ব Mirotalk SFU লিঙ্ক এবং ক্লাসের ইউনিক আইডি জোড়া হচ্ছে
     const mirotalkUrl = `https://myclassbd.shop/join/${activeGroupUniqueId}`;
     
-    // ডাটাবেজে একটি স্পেশাল টেক্সট ফরম্যাট পাঠানো হচ্ছে, যা আমরা পরে বাটন বানাবো
     const callNotice = `[LIVE_CLASS_STARTED]${mirotalkUrl}`;
     
-    // সুপাবেসে মেসেজ ইনসার্ট করা
     supabaseClient.from('messages').insert([
         { group_id: activeGroupId, sender_id: currentUser.id, message_text: callNotice }
     ]).then(() => {
-        // শিক্ষকের জন্য নতুন ট্যাবে সরাসরি ভিডিও কল ওপেন হবে
         window.open(mirotalkUrl, '_blank');
     });
 }
 
-// ================= REALTIME SUBSCRIPTION =================
-// ================= REALTIME SUBSCRIPTION (UPDATED WITH STUDENT ALERT) =================
 function listenToRealtimeData() {
+    // Comment out the messages listener to avoid conflicts
     supabaseClient.channel('custom-all-channel')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-        // ডাটাবেজ টাইপ মিসম্যাচ এড়াতে == ব্যবহার করা হয়েছে
-        if (payload.new.group_id == activeGroupId) {
-            loadMessages();
-        }
-        loadMyGroups();
+        // This listener is commented out to avoid double-rendering
+        // if (payload.new.group_id == activeGroupId) {
+        //     loadMessages();
+        // }
+        // loadMyGroups();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'join_requests' }, async payload => {
-        // শিক্ষকের প্যানেল আপডেট
         loadNotifications();
         
-        // স্টুডেন্টের নিজের জন্য রিয়েলটাইম এক্সেপ্টেন্স এলার্ট লজিক
         if (payload.eventType === 'UPDATE' && payload.new.user_id === currentUser.id && payload.new.status === 'accepted') {
             const { data: groupData } = await supabaseClient
                 .from('groups')
@@ -675,29 +656,23 @@ function listenToRealtimeData() {
                 
             const className = groupData ? groupData.group_name : "Classroom";
             alert(`🎉 Your request has been accepted for the group: "${className}"!`);
-            loadMyGroups(); // স্টুডেন্টের বামপাশের চ্যাট লিস্ট রিফ্রেশ করে গ্রুপটি যোগ করা
+            loadMyGroups();
         }
     })
-    // 🆕 এই নতুন অংশটি এখানে সুন্দরভাবে বসে গেছে
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_members' }, async payload => {
-        // চেক করা হচ্ছে রোল আপডেটটি বর্তমান ইউজারের অ্যাকাউন্টে হয়েছে কি না
         if (payload.new.user_id === currentUser.id) {
-            
-            // 🔔 অভিনন্দন নোটিফিকেশন: যদি আগে এডমিন না থাকে এবং এখন এডমিন হয়
             if (payload.new.role === 'admin' && payload.old?.role !== 'admin') {
                 const { data: groupData } = await supabaseClient.from('groups').select('group_name').eq('id', payload.new.group_id).single();
                 const className = groupData ? groupData.group_name : "Classroom";
                 alert(`🎉 Congrats! You are now an Admin for the "${className}" group.`);
             }
             
-            // ⚠️ ডিমোশন নোটিফিকেশন: যদি এডমিন থেকে বাদ দিয়ে স্টুডেন্ট করা হয়
             if (payload.new.role === 'student' && payload.old?.role === 'admin') {
                 const { data: groupData } = await supabaseClient.from('groups').select('group_name').eq('id', payload.new.group_id).single();
                 const className = groupData ? groupData.group_name : "Classroom";
                 alert(`⚠️ Notice: You have been removed from the Admin role in "${className}" group.`);
             }
 
-            // কারেন্ট ওপেন থাকা চ্যাটে রোল পরিবর্তন হলে ভিউ এবং পারমিশন আপডেট করা
             if (payload.new.group_id == activeGroupId) {
                 currentUserRoleInActiveGroup = payload.new.role;
                 openClassroom(activeGroupId, document.getElementById('active-group-title').innerText, activeGroupCreatorId, activeGroupUniqueId);
@@ -709,7 +684,9 @@ function listenToRealtimeData() {
     loadNotifications();
 }
 
-function toggleNotifications() { document.getElementById('notification-panel').classList.toggle('hidden'); }
+function toggleNotifications() { 
+    document.getElementById('notification-panel').classList.toggle('hidden'); 
+}
 
 function showApp() {
     document.getElementById('auth-container').classList.add('hidden');
@@ -721,8 +698,9 @@ function showApp() {
 function showAuth() {
     document.getElementById('auth-container').classList.remove('hidden');
     document.getElementById('app-container').classList.add('hidden');
+    // Clear polling interval on logout
+    if (chatPollingInterval) {
+        clearInterval(chatPollingInterval);
+        chatPollingInterval = null;
+    }
 }
-
-
-
-
