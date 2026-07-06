@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* WhatsApp & Messenger Dynamic Color Palette */
         :root {
             --wa-dark-green: #075E54;
             --wa-teal: #128C7E;
@@ -20,8 +19,6 @@
             --text-color: #111111;
             --card-bg: #ffffff;
         }
-
-        /* 🌙 Dark Mode Overrides */
         body.dark-mode {
             --wa-dark-green: #202c33;
             --wa-teal: #00a884;
@@ -33,55 +30,35 @@
             --text-color: #e9edef;
             --card-bg: #111b21;
         }
-
         body.container { max-width: 100%; padding: 0; margin: 0; background-color: var(--wa-bg); height: 100vh; display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--text-color); transition: background 0.3s, color 0.3s; }
         .hidden { display: none !important; }
-        
-        /* Layout Structure */
         #auth-container { max-width: 450px; margin: 60px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         #app-container { display: flex; flex-direction: column; height: 100vh; width: 100%; }
-        
-        /* App Header */
-        header { background: var(--wa-dark-green); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; transition: background 0.3s; }
-        
-        /* Header Actions */
+        header { background: var(--wa-dark-green); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; transition: background 0.3s, display 0.3s; }
         .header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
         .settings-dropdown-container { position: relative; display: inline-block; }
         .gear-btn { background: transparent; border: none; padding: 0; margin: 0; font-size: 20px; cursor: pointer; color: white; width: auto; line-height: 1; }
         .gear-btn:hover { opacity: 0.8; background: transparent; }
-        
-        /* Dropdown Menu CSS */
-        .dropdown-menu { position: absolute; right: 0; top: 100%; background: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; width: 160px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); z-index: 50; padding: 5px 0; margin-top: 5px; }
+        .dropdown-menu { position: absolute; right: 0; top: 100%; background: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; width: 180px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); z-index: 50; padding: 5px 0; margin-top: 5px; }
         body.dark-mode .dropdown-menu { border-color: #374248; }
         .dropdown-menu a { display: block; padding: 8px 15px; color: var(--text-color); text-decoration: none; font-size: 14px; text-align: left; }
         .dropdown-menu a:hover { background: var(--msg-search-bg); }
-
         #app-layout { display: flex; flex: 1; overflow: hidden; position: relative; }
-        
-        /* Sidebar View */
         .sidebar { width: 360px; background: var(--card-bg); border-right: 1px solid #e1e1e1; display: flex; flex-direction: column; transition: all 0.3s ease; position: relative; }
         body.dark-mode .sidebar { border-right-color: #222e35; }
-        
-        /* Sidebar Top Header */
-        .sidebar-top { padding: 15px 20px 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-top { padding: 15px 20px 10px; display: flex; justify-content: space-between; align-items: center; }
         .sidebar-top h3 { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-color); }
         .add-group-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--msg-search-bg); border: none; color: var(--text-color); font-size: 20px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; margin: 0; padding: 0; transition: background 0.2s; }
         .add-group-btn:hover { opacity: 0.9; }
-
-        /* Messenger Style Search Bar */
-        .messenger-search-box { padding: 0 20px 15px 20px; position: relative; border-bottom: 1px solid var(--msg-search-bg); }
+        .messenger-search-box { padding: 0 20px 15px; position: relative; border-bottom: 1px solid var(--msg-search-bg); }
         .search-wrapper { display: flex; background: var(--msg-search-bg); border-radius: 20px; padding: 4px 15px; align-items: center; }
         .search-wrapper input { background: transparent; border: none; margin: 0; padding: 6px 0; font-size: 14px; color: var(--text-color); }
         .search-wrapper input:focus { box-shadow: none; }
         .search-wrapper button { background: transparent; border: none; margin: 0; padding: 0 0 0 10px; color: #65676b; font-size: 16px; cursor: pointer; width: auto; }
-        
         #search-result { padding: 10px 20px; background: var(--card-bg); max-height: 150px; overflow-y: auto; }
-
-        /* WhatsApp Style Chat List */
         .chat-list-container { flex: 1; overflow-y: auto; }
         #my-groups-list { list-style: none; padding: 0; margin: 0; }
         #my-groups-list li { border-bottom: 1px solid var(--msg-search-bg); }
-        
         .chat-item { display: flex; align-items: center; padding: 12px 20px; color: var(--text-color); text-decoration: none; transition: background 0.2s; cursor: pointer; }
         .chat-item:hover { background: var(--msg-search-bg); text-decoration: none; }
         .chat-item-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; margin-right: 15px; background: #ccc; flex-shrink: 0; }
@@ -90,8 +67,6 @@
         .chat-item-name { font-weight: 600; font-size: 16px; margin: 0; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .chat-item-time { font-size: 12px; color: #666; flex-shrink: 0; }
         .chat-item-msg { font-size: 13px; color: #666; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-        /* Custom Popup/Modal */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; transition: all 0.3s ease; }
         .custom-modal { background: var(--card-bg); color: var(--text-color); padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); position: relative; }
         .custom-modal h4 { margin-top: 0; margin-bottom: 20px; color: var(--wa-teal); font-weight: 700; }
@@ -100,83 +75,173 @@
         body.dark-mode .custom-modal input { border-color: #374248; }
         .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
         .modal-buttons button { margin: 0; padding: 8px 20px; font-size: 15px; width: auto; }
+        .member-profile-popup-content { text-align: center; max-width: 350px; }
+        .member-profile-popup-content .large-avatar { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; cursor: pointer; margin-bottom: 15px; border: 3px solid var(--wa-teal); transition: transform 0.2s; }
+        .member-profile-popup-content .large-avatar:hover { transform: scale(1.05); }
+        .member-profile-popup-content h3 { margin: 0 0 5px; font-size: 20px; color: var(--text-color); }
+        .member-profile-popup-content .role-badge-large { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 13px; margin-top: 8px; }
+        body.dark-mode .member-profile-popup-content .role-badge-large { background: #0369a1; color: #e0f2fe; }
 
-        /* Member List Styles */
+        /* Attractive Star Button */
+        .star-section { margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .star-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 28px;
+            padding: 4px;
+            line-height: 1;
+            transition: transform 0.2s, color 0.2s;
+            color: #e4b400;  /* gold */
+        }
+        .star-btn:not(:disabled):hover {
+            transform: scale(1.2);
+            color: #ffcc00;
+        }
+        .star-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .star-count { font-weight: 600; font-size: 16px; }
+
         .member-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--msg-search-bg); }
-        .member-info { display: flex; align-items: center; gap: 12px; }
+        .member-info { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+        .member-info:hover { opacity: 0.8; }
         .member-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; background: #ccc; }
         .member-name { font-weight: 500; font-size: 15px; color: var(--text-color); }
         .admin-badge { background: #e0f2fe; color: #0369a1; padding: 2px 7px; font-size: 11px; font-weight: bold; border-radius: 4px; margin-left: 5px; }
         body.dark-mode .admin-badge { background: #0369a1; color: #e0f2fe; }
         .make-admin-btn { padding: 3px 10px; font-size: 11px; margin: 0; width: auto; background: var(--wa-teal); border: none; border-radius: 4px; color: white; cursor: pointer; }
-
-        /* Main Chat View */
+        .remove-member-btn { padding: 3px 10px; font-size: 11px; margin: 0; width: auto; background: #d32f2f; border: none; border-radius: 4px; color: white; cursor: pointer; }
         .main-content { flex: 1; display: flex; flex-direction: column; background: var(--wa-chat-bg); transition: all 0.3s ease; background-size: cover; background-position: center; }
         #no-group-selected { display: flex; align-items: center; justify-content: center; flex: 1; color: #777; text-align: center; padding: 20px; }
         #active-classroom { display: flex; flex-direction: column; height: 100%; }
-        
-        /* Chat Sub-Header */
         .chat-header { background: #eeeeee; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e0e0e0; transition: background 0.3s; }
         body.dark-mode .chat-header { background: #182229; border-bottom-color: #222e35; }
         .chat-header h4 { margin: 0; font-size: 18px; color: var(--text-color); }
-        
-        /* Header controls layout inside group */
-        .group-header-controls { display: flex; align-items: center; gap: 10px; }
-        #call-btn { background:#d32f2f; border:none; padding: 4px 10px; font-size:12px; margin:0; width: auto; font-weight: 600; border-radius: 5px; }
-        #share-btn { background: var(--wa-teal); border:none; padding: 4px 10px; font-size:12px; margin:0; width: auto; font-weight: 600; border-radius: 5px; color: white; }
-        .group-gear-btn { background: transparent; border: none; padding: 3px; margin: 0; font-size: 18px; cursor: pointer; color: var(--text-color); width: auto; line-height: 1; }
-        .group-gear-btn:hover { opacity: 0.7; background: transparent; }
 
-        /* Chat Bubbles Area */
+        /* ---------- BEAUTIFUL ACTION BUTTONS ---------- */
+        .group-header-controls { display: flex; align-items: center; gap: 8px; position: relative; }
+        .action-pill {
+            height: 36px; line-height: 36px; padding: 0 14px;
+            font-size: 13px; font-weight: 600; border-radius: 20px;
+            white-space: nowrap; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; align-items: center; justify-content: center;
+            gap: 6px; border: none; color: white;
+        }
+        .action-pill:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        #toggle-invite-btn { background: #4a5568; }
+        #share-btn { background: var(--wa-teal); }
+        #call-btn.action-pill { background: #d32f2f; box-shadow: 0 4px 10px rgba(211,47,47,0.4); }
+        #call-btn.action-pill:hover:not(:disabled) { background: #b71c1c; box-shadow: 0 6px 14px rgba(211,47,47,0.5); }
+        #call-btn.action-pill:disabled { background: #888; box-shadow: none; opacity: 0.6; cursor: not-allowed; }
+        .call-text { display: none; }  /* hidden on mobile by default */
+        /* Round icon buttons (members, settings) */
+        .group-gear-btn {
+            background: transparent; border: none; margin: 0; cursor: pointer;
+            color: var(--text-color); border-radius: 50%; transition: background 0.2s;
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 36px; height: 36px; padding: 0;
+        }
+        .group-gear-btn:hover { background: var(--msg-search-bg); }
+        .group-gear-btn svg { width: 20px; height: 20px; pointer-events: none; }
+
         .chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
         .msg-row { display: flex; width: 100%; margin-bottom: 4px; }
         .msg-row.me { justify-content: flex-end; }
         .msg-row.them { justify-content: flex-start; }
-        
         .bubble { max-width: 70%; padding: 8px 14px; border-radius: 8px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); position: relative; font-size: 15px; word-break: break-word; color: #303030; }
         .msg-row.me .bubble { background: var(--wa-bubble-me); border-top-right-radius: 0; }
         .msg-row.them .bubble { background: var(--wa-bubble-them); border-top-left-radius: 0; }
         body.dark-mode .msg-row.them .bubble { color: #e9edef; }
         body.dark-mode .msg-row.me .bubble { color: #e9edef; }
-        
-        .bubble .sender-name { font-size: 12px; font-weight: bold; color: var(--wa-teal); margin-bottom: 3px; }
+        .bubble .sender-name { font-size: 12px; font-weight: bold; color: var(--wa-teal); margin-bottom: 3px; display: flex; align-items: center; gap: 4px; }
         .msg-row.me .sender-name { color: #4f772d; }
         body.dark-mode .msg-row.me .sender-name { color: #86efac; }
-
-        /* Input Footer */
+        .msg-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; cursor: pointer; }
         .chat-footer { background: #f0f0f0; padding: 10px 15px; display: flex; align-items: center; gap: 10px; }
         body.dark-mode .chat-footer { background: #182229; }
-        .chat-footer input { margin: 0; background: var(--card-bg); border: none; border-radius: 20px; padding: 10px 20px; color: var(--text-color); }
-        .chat-footer button { margin: 0; border-radius: 50px; background: var(--wa-teal); border: none; padding: 10px 24px; width: auto; }
-        
+        .chat-footer input { margin: 0; background: var(--card-bg); border: none; border-radius: 20px; padding: 10px 20px; color: var(--text-color); flex: 1; }
+        .chat-footer button { margin: 0; border-radius: 50px; background: var(--wa-teal); border: none; padding: 10px 24px; width: auto; color: white; }
         .notification-badge { background: var(--wa-light-green); color: white; border-radius: 50%; padding: 2px 7px; font-size: 11px; font-weight: bold; }
         .back-btn { display: none; background: transparent; border: none; color: var(--wa-teal); font-size: 16px; font-weight: bold; cursor: pointer; margin-right: 10px; padding: 0; width: auto;}
+        .icon-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+        .icon-btn svg { width: 16px; height: 16px; fill: currentColor; }
 
-        /* 📱 MOBILE RESPONSIVE MEDIA QUERIES */
+        /* Mobile "More" button */
+        .mobile-options-btn { display: none; background: var(--wa-teal); border: none; color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer; align-items: center; gap: 4px; }
+        .mobile-options-dropdown { position: absolute; right: 0; top: 100%; background: var(--card-bg); border: 1px solid #ccc; border-radius: 12px; width: 200px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 100; padding: 10px 0; margin-top: 8px; }
+        body.dark-mode .mobile-options-dropdown { border-color: #374248; }
+        .mobile-options-dropdown .menu-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: var(--text-color); font-size: 14px; cursor: pointer; transition: background 0.2s; }
+        .mobile-options-dropdown .menu-item:hover { background: var(--msg-search-bg); }
+        .mobile-options-dropdown .menu-item svg { width: 18px; height: 18px; fill: currentColor; opacity: 0.8; }
+
+        /* Incoming call popup */
+        #incoming-call-popup { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .incoming-call-card { background: var(--card-bg); border-radius: 20px; padding: 40px 30px; text-align: center; max-width: 350px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: scaleIn 0.3s ease; }
+        @keyframes scaleIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .incoming-call-card .call-group-avatar { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-bottom: 20px; border: 4px solid var(--wa-teal); }
+        .incoming-call-card h2 { margin: 0 0 10px; color: var(--wa-teal); }
+        .incoming-call-card p { margin: 0 0 20px; color: var(--text-color); font-size: 16px; }
+        .call-actions { display: flex; gap: 15px; justify-content: center; }
+        .call-actions button { padding: 12px 30px; border: none; border-radius: 30px; font-weight: 600; font-size: 16px; cursor: pointer; transition: all 0.2s; }
+        .btn-join { background: #25D366; color: white; }
+        .btn-join:hover { background: #1da851; }
+        .btn-reject { background: #d32f2f; color: white; }
+        .btn-reject:hover { background: #b71c1c; }
+
+        /* ---------- RESPONSIVE ---------- */
         @media (max-width: 768px) {
             .sidebar { width: 100%; position: absolute; height: 100%; left: 0; top: 0; z-index: 2; }
             .main-content { width: 100%; position: absolute; height: 100%; left: 0; top: 0; z-index: 1; }
-            
             #app-layout.chat-open .sidebar { transform: translateX(-100%); }
             #app-layout.chat-open .main-content { z-index: 3; }
             .back-btn { display: inline-block; }
-            
             #auth-container { margin: 20px; }
             .bubble { max-width: 85%; }
+            #app-container.group-open header { display: none; }
+            /* Hide desktop action pills, show only mobile call button + more */
+            .group-header-controls > .action-pill,
+            .group-header-controls > .group-gear-btn { display: none; }
+            #call-btn-mobile { display: flex !important; }   /* icon only */
+            .mobile-options-btn { display: inline-flex; }
+        }
+
+        /* Desktop: show call-btn with text, hide mobile call button */
+        @media (min-width: 769px) {
+            #call-btn-mobile { display: none; }
+            .call-text { display: inline; }   /* "Live" text visible */
+            /* larger round buttons for desktop */
+            .group-gear-btn { width: 44px; height: 44px; }
+            .group-gear-btn svg { width: 24px; height: 24px; }
+        }
+
+        /* Header star count */
+        .my-star-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 2px 8px;
+            margin-left: 8px;
+            font-size: 14px;
+            color: #ffd700;
         }
     </style>
 </head>
 <body>
 
+    <!-- Auth Screen -->
     <div id="auth-container">
         <div id="login-form">
             <h3 style="color: var(--wa-dark-green); text-align:center;">Login to MyClassroom</h3>
             <input type="email" id="login-email" placeholder="Email">
             <input type="password" id="login-password" placeholder="Password">
-            <button onclick="loginUser()" style="background: var(--wa-teal); border:none;">Login</button>
+            <button type="button" onclick="loginUser()" style="background: var(--wa-teal); border:none; width:100%;">Login</button>
             <p style="text-align: center; margin-top: 15px;">Don't have an account? <a href="javascript:void(0);" onclick="toggleAuthForms(true)">Sign Up</a></p>
         </div>
-
         <div id="signup-form" class="hidden">
             <h3 style="color: var(--wa-dark-green); text-align:center;">Create Account</h3>
             <input type="text" id="signup-name" placeholder="Full Name">
@@ -184,23 +249,25 @@
             <input type="password" id="signup-password" placeholder="Password">
             <input type="password" id="signup-confirm-password" placeholder="Confirm Password">
             <label style="font-size: 14px; margin-bottom: 15px;">Profile Picture: <input type="file" id="signup-avatar" accept="image/*"></label>
-            <button onclick="registerUser()" style="background: var(--wa-teal); border:none;">Register</button>
+            <button type="button" onclick="registerUser()" style="background: var(--wa-teal); border:none; width:100%;">Register</button>
             <p style="text-align: center; margin-top: 15px;">Already have an account? <a href="javascript:void(0);" onclick="toggleAuthForms(false)">Login</a></p>
         </div>
     </div>
 
+    <!-- App Main Container -->
     <div id="app-container" class="hidden">
         <header>
             <div style="display: flex; align-items: center;">
                 <img id="user-avatar" src="" alt="Avatar" style="width:36px; height:36px; border-radius:50%; margin-right:12px; object-fit: cover; border: 2px solid white;">
-                <span id="welcome-user" style="font-weight: 500;">Welcome</span>
+                <span id="welcome-user" style="font-weight: 500;"></span>
+                <span id="my-star-count" class="my-star-badge">★ 0</span>
             </div>
-            
             <div class="header-actions">
                 <div class="settings-dropdown-container">
                     <button class="gear-btn" onclick="toggleSettingsDropdown(event)">⚙️</button>
                     <div id="settings-dropdown" class="dropdown-menu hidden">
                         <a href="javascript:void(0);" onclick="openProfileSettingsModal()">Profile Settings</a>
+                        <a href="https://haqqul.vercel.app" target="_blank">Admin Support</a>
                         <a href="javascript:void(0);" onclick="logoutUser()">Logout</a>
                     </div>
                 </div>
@@ -210,20 +277,19 @@
             </div>
         </header>
 
-<div id="notification-panel" class="hidden" style="position: absolute; right: 20px; top: 65px; background: var(--card-bg); border: 1px solid #ccc; border-radius: 12px; width: 340px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 100; padding: 15px;">
-    <h6 style="color: var(--wa-teal); margin-top: 0; margin-bottom: 12px; font-weight: 700; border-bottom: 1px solid var(--msg-search-bg); padding-bottom: 8px;">📊 Pending Join Requests</h6>
-    <ul id="requests-list" style="list-style: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto;">
-        <li style="text-align: center; color: #777; padding: 10px 0;">No pending requests</li>
-    </ul>
-</div>
+        <div id="notification-panel" class="hidden" style="position: absolute; right: 20px; top: 65px; background: var(--card-bg); border: 1px solid #ccc; border-radius: 12px; width: 340px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 100; padding: 15px;">
+            <h6 style="color: var(--wa-teal); margin-top: 0; margin-bottom: 12px; font-weight: 700; border-bottom: 1px solid var(--msg-search-bg); padding-bottom: 8px;">📊 Pending Join Requests</h6>
+            <ul id="requests-list" style="list-style: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto;">
+                <li style="text-align: center; color: #777; padding: 10px 0;">No pending requests</li>
+            </ul>
+        </div>
 
-<div id="app-layout">
+        <div id="app-layout">
             <div class="sidebar">
                 <div class="sidebar-top">
                     <h3>Chats</h3>
                     <button class="add-group-btn" onclick="toggleCreateModal(true)" title="Create Classroom">+</button>
                 </div>
-
                 <div class="messenger-search-box">
                     <div class="search-wrapper">
                         <input type="text" id="search-id" placeholder="Search with unique ID...">
@@ -231,7 +297,6 @@
                     </div>
                     <div id="search-result" class="hidden"></div>
                 </div>
-
                 <div class="chat-list-container">
                     <ul id="my-groups-list"></ul>
                 </div>
@@ -254,23 +319,55 @@
                                 <small id="active-group-id-display" style="font-size: 12px; opacity: 0.6; display: block; margin-top: 2px;">ID: --</small>
                             </div>
                         </div>
-                        
                         <div class="group-header-controls">
-                            <button id="toggle-invite-btn" style="background: #4a5568; border:none; padding: 4px 10px; font-size:12px; margin:0; width: auto; font-weight: 600; border-radius: 5px; color: white;" onclick="toggleTeacherInviteZone()" title="Direct Student Management">➕👤</button>
-                            <button id="share-btn" onclick="shareGroupLink()">Share Link</button>
-                            <button id="call-btn" class="error" onclick="startClassCall()">Live Class</button>
-                            <button class="group-gear-btn" onclick="openGroupMembersModal()" title="Group Members">👥</button>
-                            <button class="group-gear-btn" onclick="openGroupSettingsModal()" title="Group Settings">⚙️</button>
+                            <!-- Desktop action pills (hidden on mobile) -->
+                            <button id="toggle-invite-btn" class="action-pill" onclick="toggleTeacherInviteZone()" title="Add Student">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                Add Student
+                            </button>
+                            <button id="share-btn" class="action-pill" onclick="shareGroupLink()" title="Share Link">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
+                            </button>
+                            <button id="call-btn" class="action-pill" onclick="startClassCall()" title="Live Class">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+                                <span class="call-text">Live</span>
+                            </button>
+                            <!-- Mobile only call button (icon) -->
+                            <button id="call-btn-mobile" class="group-gear-btn" onclick="startClassCall()" title="Live Class" style="display:none;">
+                                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+                            </button>
+                            <!-- Round icon buttons (members, settings) -->
+                            <button class="group-gear-btn" onclick="openGroupMembersModal()" title="Group Members">
+                                <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                            </button>
+                            <button class="group-gear-btn" onclick="openGroupSettingsModal()" title="Group Settings">
+                                <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                            </button>
+                            <!-- Mobile More button -->
+                            <button class="mobile-options-btn" onclick="toggleMobileOptions(event)" id="mobile-options-btn">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg> More
+                            </button>
+                            <div id="mobile-options-dropdown" class="mobile-options-dropdown hidden">
+                                <div class="menu-item" onclick="shareGroupLink(); toggleMobileOptions();">
+                                    <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg> Share Link
+                                </div>
+                                <div class="menu-item" onclick="openGroupMembersModal(); toggleMobileOptions();">
+                                    <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg> Group Members
+                                </div>
+                                <div class="menu-item" onclick="toggleTeacherInviteZone(); toggleMobileOptions();">
+                                    <svg viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> Add Student
+                                </div>
+                                <div class="menu-item" onclick="openGroupSettingsModal(); toggleMobileOptions();">
+                                    <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg> Settings
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    
                     <div id="teacher-invite-zone" class="hidden" style="background: #e2e8f0; padding: 8px 15px; display: flex; gap: 10px; align-items: center;">
                         <input type="email" id="invite-email" placeholder="Student Email Address" style="margin:0; background:var(--card-bg); font-size:14px; height:35px;">
                         <button onclick="directAddUser()" style="margin:0; background: var(--wa-teal); border:none; padding:0 15px; height:35px; font-size:13px; white-space:nowrap;">Add Student</button>
                     </div>
-
                     <div class="chat-box" id="chat-messages"></div>
-
                     <div class="chat-footer">
                         <input type="text" id="message-input" placeholder="Type a message...">
                         <button onclick="sendMessage()">Send</button>
@@ -280,21 +377,19 @@
         </div>
     </div>
 
+    <!-- Modals -->
     <div id="create-group-modal" class="modal-overlay hidden">
         <div class="custom-modal">
             <h4>Create New Classroom</h4>
             <input type="text" id="group-name" placeholder="Classroom Name">
             <input type="text" id="group-unique-id" placeholder="Unique ID (e.g. MATH101)">
-            <label style="font-size: 14px;">Group Banner Picture:
-                <input type="file" id="group-avatar" accept="image/*" style="margin-top: 5px;">
-            </label>
+            <label style="font-size: 14px;">Group Banner Picture: <input type="file" id="group-avatar" accept="image/*" style="margin-top: 5px;"></label>
             <div class="modal-buttons">
                 <button class="secondary" onclick="toggleCreateModal(false)">Cancel</button>
                 <button onclick="createGroup()" style="background: var(--wa-dark-green); border:none;">Create</button>
             </div>
         </div>
     </div>
-
     <div id="group-members-modal" class="modal-overlay hidden">
         <div class="custom-modal">
             <h4>Classroom Members</h4>
@@ -306,35 +401,28 @@
             </div>
         </div>
     </div>
-
     <div id="profile-settings-modal" class="modal-overlay hidden">
         <div class="custom-modal">
             <h4>Profile Settings</h4>
             <input type="text" id="profile-name-input" placeholder="Update Full Name">
-            <label style="font-size: 14px;">Update Profile Picture:
-                <input type="file" id="profile-avatar-input" accept="image/*" style="margin-top: 5px;">
-            </label>
-            
+            <label style="font-size: 14px;">Update Profile Picture: <input type="file" id="profile-avatar-input" accept="image/*" style="margin-top: 5px;"></label>
             <label style="display: flex; align-items: center; gap: 10px; margin-top: 20px; font-size: 15px; cursor: pointer;">
                 <input type="checkbox" id="dark-mode-toggle" onchange="handleDarkModeToggle(this)" style="margin: 0; width: auto;"> Dark Mode Enable
             </label>
-            
             <div class="modal-buttons">
                 <button class="secondary" onclick="toggleProfileModal(false)">Cancel</button>
                 <button onclick="saveProfileSettings()" style="background: var(--wa-teal); border:none;">Save Changes</button>
             </div>
         </div>
     </div>
-
     <div id="group-settings-modal" class="modal-overlay hidden">
         <div class="custom-modal">
             <h4>Classroom Settings</h4>
             <input type="text" id="edit-group-name" placeholder="Update Classroom Name">
-            <label style="font-size: 14px;">Update Group Profile Picture:
-                <input type="file" id="edit-group-avatar" accept="image/*" style="margin-top: 5px;">
-            </label>
-            <label style="font-size: 14px;">Change Chat Background (Wallpaper):
-                <input type="file" id="edit-group-wallpaper" accept="image/*" style="margin-top: 5px;">
+            <label style="font-size: 14px;">Update Group Profile Picture: <input type="file" id="edit-group-avatar" accept="image/*" style="margin-top: 5px;"></label>
+            <label style="font-size: 14px;">Change Chat Background (Wallpaper): <input type="file" id="edit-group-wallpaper" accept="image/*" style="margin-top: 5px;"></label>
+            <label style="display: flex; align-items: center; gap: 10px; margin-top: 20px; font-size: 15px; cursor: pointer;">
+                <input type="checkbox" id="restrict-messaging-toggle" style="margin: 0; width: auto;"> Only Admins / Teacher can send messages
             </label>
             <div class="modal-buttons">
                 <button class="secondary" onclick="toggleGroupModal(false)">Cancel</button>
@@ -342,36 +430,60 @@
             </div>
         </div>
     </div>
+    <!-- Member Profile Popup with Star -->
+    <div id="member-profile-popup" class="modal-overlay hidden" onclick="closeMemberProfile()">
+        <div class="custom-modal member-profile-popup-content" onclick="event.stopPropagation();">
+            <img id="popup-member-avatar" class="large-avatar" src="" alt="Member Avatar" onclick="openFullScreenPreview(this.src)" />
+            <h3 id="popup-member-name"></h3>
+            <span id="popup-member-role" class="role-badge-large"></span>
+            <div class="star-section">
+                <button id="star-btn" class="star-btn" onclick="toggleStar()" title="Give a star">★</button>
+                <span id="star-count" class="star-count">0</span>
+                <span style="font-size: 14px; opacity: 0.7;">stars</span>
+            </div>
+            <div style="margin-top: 20px;">
+                <button class="secondary" onclick="closeMemberProfile()">Close</button>
+            </div>
+        </div>
+    </div>
+    <div id="incoming-call-popup" class="hidden">
+        <div class="incoming-call-card">
+            <img id="call-group-avatar" class="call-group-avatar" src="" alt="Group Avatar">
+            <h2 id="call-group-name"></h2>
+            <p>🔴 Your Class Started!</p>
+            <div class="call-actions">
+                <button class="btn-join" onclick="joinLiveClass()">Join Class</button>
+                <button class="btn-reject" onclick="closeIncomingCallPopup()">Reject</button>
+            </div>
+        </div>
+    </div>
+    <div id="leave-group-modal" class="modal-overlay hidden">
+        <div class="custom-modal" style="text-align: center;">
+            <h4>Leave Group</h4>
+            <p style="margin-bottom: 20px;">You are about to leave this group. You can rejoin only if invited again.</p>
+            <div class="modal-buttons" style="justify-content: center;">
+                <button class="secondary" onclick="toggleLeaveGroupModal(false)">Cancel</button>
+                <button onclick="confirmLeaveGroup()" style="background: #d32f2f; border:none; color: white;">Leave Group</button>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
     <script>
-        // Static UI controls
-        function toggleSettingsDropdown(e) {
-            e.stopPropagation();
-            document.getElementById('settings-dropdown').classList.toggle('hidden');
-        }
+        function toggleSettingsDropdown(e) { e.stopPropagation(); document.getElementById('settings-dropdown').classList.toggle('hidden'); }
         document.addEventListener('click', () => {
             document.getElementById('settings-dropdown').classList.add('hidden');
+            document.getElementById('mobile-options-dropdown')?.classList.add('hidden');
         });
-        function toggleCreateModal(show) {
-            document.getElementById('create-group-modal').classList.toggle('hidden', !show);
-        }
-        function toggleProfileModal(show) {
-            document.getElementById('profile-settings-modal').classList.toggle('hidden', !show);
-        }
-        function toggleGroupModal(show) {
-            document.getElementById('group-settings-modal').classList.toggle('hidden', !show);
-        }
-        function toggleMembersModal(show) {
-            document.getElementById('group-members-modal').classList.toggle('hidden', !show);
-        }
-        function toggleTeacherInviteZone() {
-            document.getElementById('teacher-invite-zone').classList.toggle('hidden');
-        }
+        function toggleCreateModal(show) { document.getElementById('create-group-modal').classList.toggle('hidden', !show); }
+        function toggleProfileModal(show) { document.getElementById('profile-settings-modal').classList.toggle('hidden', !show); }
+        function toggleGroupModal(show) { document.getElementById('group-settings-modal').classList.toggle('hidden', !show); }
+        function toggleMembersModal(show) { document.getElementById('group-members-modal').classList.toggle('hidden', !show); }
+        function toggleTeacherInviteZone() { document.getElementById('teacher-invite-zone').classList.toggle('hidden'); }
+        function toggleMobileOptions(e) { e?.stopPropagation(); document.getElementById('mobile-options-dropdown').classList.toggle('hidden'); }
+        function closeMemberProfile() { document.getElementById('member-profile-popup').classList.add('hidden'); }
+        function openFullScreenPreview(url) { window.open(url, '_blank'); }
+        function toggleLeaveGroupModal(show) { document.getElementById('leave-group-modal').classList.toggle('hidden', !show); }
     </script>
 </body>
 </html>
-
-
-
-
