@@ -82,26 +82,10 @@
         .member-profile-popup-content .role-badge-large { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 13px; margin-top: 8px; }
         body.dark-mode .member-profile-popup-content .role-badge-large { background: #0369a1; color: #e0f2fe; }
 
-        /* Attractive Star Button */
         .star-section { margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-        .star-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 28px;
-            padding: 4px;
-            line-height: 1;
-            transition: transform 0.2s, color 0.2s;
-            color: #e4b400;  /* gold */
-        }
-        .star-btn:not(:disabled):hover {
-            transform: scale(1.2);
-            color: #ffcc00;
-        }
-        .star-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
+        .star-btn { background: none; border: none; cursor: pointer; font-size: 28px; padding: 4px; line-height: 1; transition: transform 0.2s, color 0.2s; color: #e4b400; }
+        .star-btn:not(:disabled):hover { transform: scale(1.2); color: #ffcc00; }
+        .star-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .star-count { font-weight: 600; font-size: 16px; }
 
         .member-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--msg-search-bg); }
@@ -120,7 +104,6 @@
         body.dark-mode .chat-header { background: #182229; border-bottom-color: #222e35; }
         .chat-header h4 { margin: 0; font-size: 18px; color: var(--text-color); }
 
-        /* ---------- BEAUTIFUL ACTION BUTTONS ---------- */
         .group-header-controls { display: flex; align-items: center; gap: 8px; position: relative; }
         .action-pill {
             height: 36px; line-height: 36px; padding: 0 14px;
@@ -135,8 +118,7 @@
         #call-btn.action-pill { background: #d32f2f; box-shadow: 0 4px 10px rgba(211,47,47,0.4); }
         #call-btn.action-pill:hover:not(:disabled) { background: #b71c1c; box-shadow: 0 6px 14px rgba(211,47,47,0.5); }
         #call-btn.action-pill:disabled { background: #888; box-shadow: none; opacity: 0.6; cursor: not-allowed; }
-        .call-text { display: none; }  /* hidden on mobile by default */
-        /* Round icon buttons (members, settings) */
+        .call-text { display: none; }
         .group-gear-btn {
             background: transparent; border: none; margin: 0; cursor: pointer;
             color: var(--text-color); border-radius: 50%; transition: background 0.2s;
@@ -168,7 +150,6 @@
         .icon-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
         .icon-btn svg { width: 16px; height: 16px; fill: currentColor; }
 
-        /* Mobile "More" button */
         .mobile-options-btn { display: none; background: var(--wa-teal); border: none; color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer; align-items: center; gap: 4px; }
         .mobile-options-dropdown { position: absolute; right: 0; top: 100%; background: var(--card-bg); border: 1px solid #ccc; border-radius: 12px; width: 200px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 100; padding: 10px 0; margin-top: 8px; }
         body.dark-mode .mobile-options-dropdown { border-color: #374248; }
@@ -176,7 +157,6 @@
         .mobile-options-dropdown .menu-item:hover { background: var(--msg-search-bg); }
         .mobile-options-dropdown .menu-item svg { width: 18px; height: 18px; fill: currentColor; opacity: 0.8; }
 
-        /* Incoming call popup */
         #incoming-call-popup { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .incoming-call-card { background: var(--card-bg); border-radius: 20px; padding: 40px 30px; text-align: center; max-width: 350px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: scaleIn 0.3s ease; }
@@ -191,7 +171,6 @@
         .btn-reject { background: #d32f2f; color: white; }
         .btn-reject:hover { background: #b71c1c; }
 
-        /* ---------- RESPONSIVE ---------- */
         @media (max-width: 768px) {
             .sidebar { width: 100%; position: absolute; height: 100%; left: 0; top: 0; z-index: 2; }
             .main-content { width: 100%; position: absolute; height: 100%; left: 0; top: 0; z-index: 1; }
@@ -201,23 +180,19 @@
             #auth-container { margin: 20px; }
             .bubble { max-width: 85%; }
             #app-container.group-open header { display: none; }
-            /* Hide desktop action pills, show only mobile call button + more */
             .group-header-controls > .action-pill,
             .group-header-controls > .group-gear-btn { display: none; }
-            #call-btn-mobile { display: flex !important; }   /* icon only */
+            #call-btn-mobile { display: flex !important; }
             .mobile-options-btn { display: inline-flex; }
         }
 
-        /* Desktop: show call-btn with text, hide mobile call button */
         @media (min-width: 769px) {
             #call-btn-mobile { display: none; }
-            .call-text { display: inline; }   /* "Live" text visible */
-            /* larger round buttons for desktop */
+            .call-text { display: inline; }
             .group-gear-btn { width: 44px; height: 44px; }
             .group-gear-btn svg { width: 24px; height: 24px; }
         }
 
-        /* Header star count */
         .my-star-badge {
             display: inline-flex;
             align-items: center;
@@ -232,7 +207,6 @@
     </style>
 </head>
 <body>
-
     <!-- Auth Screen -->
     <div id="auth-container">
         <div id="login-form">
@@ -320,7 +294,6 @@
                             </div>
                         </div>
                         <div class="group-header-controls">
-                            <!-- Desktop action pills (hidden on mobile) -->
                             <button id="toggle-invite-btn" class="action-pill" onclick="toggleTeacherInviteZone()" title="Add Student">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                                 Add Student
@@ -332,18 +305,15 @@
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
                                 <span class="call-text">Live</span>
                             </button>
-                            <!-- Mobile only call button (icon) -->
                             <button id="call-btn-mobile" class="group-gear-btn" onclick="startClassCall()" title="Live Class" style="display:none;">
                                 <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
                             </button>
-                            <!-- Round icon buttons (members, settings) -->
                             <button class="group-gear-btn" onclick="openGroupMembersModal()" title="Group Members">
                                 <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
                             </button>
                             <button class="group-gear-btn" onclick="openGroupSettingsModal()" title="Group Settings">
                                 <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
                             </button>
-                            <!-- Mobile More button -->
                             <button class="mobile-options-btn" onclick="toggleMobileOptions(event)" id="mobile-options-btn">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg> More
                             </button>
@@ -430,7 +400,6 @@
             </div>
         </div>
     </div>
-    <!-- Member Profile Popup with Star -->
     <div id="member-profile-popup" class="modal-overlay hidden" onclick="closeMemberProfile()">
         <div class="custom-modal member-profile-popup-content" onclick="event.stopPropagation();">
             <img id="popup-member-avatar" class="large-avatar" src="" alt="Member Avatar" onclick="openFullScreenPreview(this.src)" />
