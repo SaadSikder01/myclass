@@ -121,15 +121,20 @@ async function saveProfileSettings() {
         avatarUrl = supabaseClient.storage.from('classroom_uploads').getPublicUrl(filePath).data.publicUrl;
     }
     const { data, error } = await supabaseClient.auth.updateUser({ data: { name: newName, avatar_url: avatarUrl } });
-    if (error) alert(error.message);
-    else {
-        alert("Profile updated successfully!");
-        currentUser = data.user;
-        showApp();
-        toggleProfileModal(false);
-    }
+    if (error) return alert(error.message);
+
+    const { error: profileErr } = await supabaseClient
+        .from('profiles')
+        .upsert({ id: currentUser.id, name: newName, avatar_url: avatarUrl, email: currentUser.email }, { onConflict: 'id' });
+    if (profileErr) console.warn("Profiles update error (non-critical):", profileErr.message);
+
+    alert("Profile updated successfully!");
+    currentUser = data.user;
+    showApp();
+    toggleProfileModal(false);
 }
 
+// ========== CREATE GROUP (FIXED – no restrict_messaging in insert) ==========
 async function createGroup() {
     const name = document.getElementById('group-name').value,
           uniqueId = document.getElementById('group-unique-id').value.trim(),
@@ -145,10 +150,12 @@ async function createGroup() {
         group_name: name,
         unique_id: uniqueId,
         group_avatar: avatarUrl,
-        creator_id: currentUser.id,
-        restrict_messaging: false
+        creator_id: currentUser.id
     }]).select().single();
-    if (groupErr) return alert("Unique ID already exists!");
+    if (groupErr) {
+        alert("Failed to create group: " + groupErr.message);
+        return;
+    }
     await supabaseClient.from('group_members').insert([{ group_id: groupData.id, user_id: currentUser.id, role: 'teacher' }]);
     alert("Classroom Created Successfully!");
     toggleCreateModal(false);
