@@ -31,7 +31,26 @@ document.addEventListener("DOMContentLoaded", () => {
             showAuth();
         }
     });
+
+    // ✅ Safety net: যেকোনো unwrapped checkbox কে auto toggle switch বানাও
+    setTimeout(enhanceCheckboxesToToggles, 0);
+    const observer = new MutationObserver(() => enhanceCheckboxesToToggles());
+    observer.observe(document.body, { childList: true, subtree: true });
 });
+
+/* ========== ✅ Checkbox → Toggle Switch Auto Enhancer (safety net) ========== */
+function enhanceCheckboxesToToggles() {
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        if (cb.closest('.switch')) return; // already wrapped, skip
+        const wrapper = document.createElement('label');
+        wrapper.className = 'switch';
+        const slider = document.createElement('span');
+        slider.className = 'slider';
+        cb.parentNode.insertBefore(wrapper, cb);
+        wrapper.appendChild(cb);
+        wrapper.appendChild(slider);
+    });
+}
 
 function toggleAuthForms(showSignup) {
     document.getElementById('login-form').classList.toggle('hidden', showSignup);
@@ -111,6 +130,8 @@ function handleDarkModeToggle(checkbox) {
         localStorage.setItem('darkMode', 'disabled');
     }
 }
+
+/* ========== ✅ FIXED: saveProfileSettings — DOM-এ সাথে সাথে avatar update ========== */
 async function saveProfileSettings() {
     const newName = document.getElementById('profile-name-input').value.trim();
     const avatarFile = document.getElementById('profile-avatar-input').files[0];
@@ -131,10 +152,16 @@ async function saveProfileSettings() {
     alert("Profile updated successfully!");
     currentUser = data.user;
     showApp();
+
+    // ✅ FIX: নিজের পাঠানো সব message-এর avatar সাথে সাথে update
+    document.querySelectorAll('.msg-row.me .msg-avatar').forEach(img => {
+        if (avatarUrl) img.src = avatarUrl;
+    });
+
     toggleProfileModal(false);
 }
 
-// ========== CREATE GROUP (FIXED – no restrict_messaging in insert) ==========
+// ========== CREATE GROUP ==========
 async function createGroup() {
     const name = document.getElementById('group-name').value,
           uniqueId = document.getElementById('group-unique-id').value.trim(),
@@ -460,6 +487,7 @@ async function sendMessage() {
     }
 }
 
+/* ========== ✅ FIXED: loadMessages — নিজের message-এ fresh avatar/name ========== */
 async function loadMessages() {
     const chatBox = document.getElementById('chat-messages');
     const prevHeight = chatBox.scrollHeight, prevTop = chatBox.scrollTop, clientH = chatBox.clientHeight;
@@ -477,12 +505,24 @@ async function loadMessages() {
 
     if (data) {
         const now = new Date();
+        // ✅ নিজের fresh metadata (সবসময় latest)
+        const myFreshAvatar = currentUser.user_metadata.avatar_url || 'https://placehold.co/30';
+        const myFreshName   = currentUser.user_metadata.name || 'You';
+
         data.forEach(msg => {
             const isMe = msg.sender_id === currentUser.id;
-            const avatarUrl = msg.profiles?.avatar_url || 'https://placehold.co/30';
-            const senderName = isMe ? 'You' : (msg.profiles?.name || 'Unknown');
-            let msgHtml;
+            let avatarUrl, senderName;
 
+            if (isMe) {
+                // ✅ FIX: নিজের message-এ সবসময় fresh metadata ব্যবহার
+                avatarUrl  = myFreshAvatar;
+                senderName = 'You';
+            } else {
+                avatarUrl  = msg.profiles?.avatar_url || 'https://placehold.co/30';
+                senderName = msg.profiles?.name || 'Unknown';
+            }
+
+            let msgHtml;
             if (msg.message_text.startsWith('[LIVE_CLASS_STARTED]')) {
                 const callUrl = msg.message_text.replace('[LIVE_CLASS_STARTED]', '');
                 msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #d32f2f; padding: 12px; border-radius: 8px;">
