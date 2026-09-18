@@ -536,7 +536,7 @@ function startClassCall() {
     if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') {
         return alert("Only Teachers and Admins can start the live class!");
     }
-    const mirotalkUrl = `https://myclassbd.shop/join/${activeGroupUniqueId}`;
+    const mirotalkUrl = `https://2a14-6781-000a-0000-0007.taild42689.ts.net/join/${activeGroupUniqueId}`;
     const callNotice = `[LIVE_CLASS_STARTED]${mirotalkUrl}`;
     supabaseClient
         .from('messages')
