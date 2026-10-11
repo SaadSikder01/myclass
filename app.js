@@ -1,7 +1,7 @@
 /* ============================================================
    MyClassroom - app.js
-   Includes: Auth, Groups, Chat, Media, Recording, Whiteboard, Poll,
-             Message Edit/Delete, Profile Card, Add Student Modal
+   Includes: Auth, Groups, Chat, Media, Recording, Whiteboard,
+             Poll, Edit/Delete, Add Student, Secure Live Class
    ============================================================ */
 
 const SUPABASE_URL = "https://bytnxoltodeckrmwobgc.supabase.co";
@@ -28,6 +28,16 @@ let currentUser = null,
 let pendingMedia = null;
 let membersRoleCache = {};
 let currentEditMessageId = null;
+
+// ✅ FIX: skip chat rebuild while media playing + hash cache + live call popup dedup
+let lastMessagesHash = '';
+let shownLiveCallIds = new Set();
+
+// ✅ LIVE CLASS session tracking
+let currentLiveCallId = null;
+let currentLiveRoomName = null;
+let liveHeartbeatTimer = null;
+let pendingLiveCallId = null;
 
 /* ============================================================
    INIT
@@ -90,6 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // ✅ Whiteboard keyboard shortcuts (including H for pan)
     document.addEventListener('keydown', (e) => {
         const modal = document.getElementById('whiteboard-modal');
         if (!modal || modal.classList.contains('hidden')) return;
@@ -101,10 +112,54 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         if (key === 'delete' || key === 'backspace') { if (wbSelected) { e.preventDefault(); wbDeleteSelected(); } return; }
-        const shortcuts = { 'v':'select','p':'pen','m':'highlighter','e':'eraser','l':'line','a':'arrow','r':'rect','o':'circle','t':'triangle','x':'text','n':'sticky' };
+        const shortcuts = { 'v':'select','h':'pan','p':'pen','m':'highlighter','e':'eraser','l':'line','a':'arrow','r':'rect','o':'circle','t':'triangle','x':'text','n':'sticky' };
         if (shortcuts[key]) { e.preventDefault(); wbSetTool(shortcuts[key]); }
     });
+
+    // ✅ Space + drag panning for whiteboard
+    document.addEventListener('keydown', e => {
+        if (e.code === 'Space') {
+            const wbModal = document.getElementById('whiteboard-modal');
+            if (wbModal && !wbModal.classList.contains('hidden') && !e.target.closest('input,textarea')) {
+                wbSpaceHeld = true;
+                e.preventDefault();
+                if (wbCanvas && !wbPanning) wbCanvas.style.cursor = 'grab';
+            }
+        }
+    });
+    document.addEventListener('keyup', e => {
+        if (e.code === 'Space') {
+            wbSpaceHeld = false;
+            if (wbCanvas && !wbPanning) {
+                if (wbTool === 'pan') wbCanvas.style.cursor = 'grab';
+                else if (wbTool === 'select') wbCanvas.style.cursor = 'default';
+                else if (wbTool === 'text' || wbTool === 'sticky') wbCanvas.style.cursor = 'text';
+                else wbCanvas.style.cursor = 'crosshair';
+            }
+        }
+    });
+
+    setTimeout(injectWhiteboardPanButton, 100);
+
+    // ✅ Stop heartbeat when teacher closes tab
+    window.addEventListener('beforeunload', () => {
+        stopLiveHeartbeat();
+    });
 });
+
+function injectWhiteboardPanButton() {
+    const toolbar = document.querySelector('.wb-toolbar');
+    if (!toolbar) return;
+    if (document.getElementById('wb-tool-pan')) return;
+    const panBtn = document.createElement('button');
+    panBtn.id = 'wb-tool-pan';
+    panBtn.title = 'Pan / Move Canvas (H · middle-mouse · hold Space)';
+    panBtn.textContent = '✋';
+    panBtn.setAttribute('onclick', "wbSetTool('pan')");
+    const selectBtn = document.getElementById('wb-tool-select');
+    if (selectBtn) selectBtn.insertAdjacentElement('afterend', panBtn);
+    else toolbar.insertBefore(panBtn, toolbar.querySelector('button'));
+}
 
 function enhanceCheckboxesToToggles() {
     document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -246,6 +301,7 @@ async function loadMyGroups() {
             else if (lastMsg.startsWith('[WHITEBOARD]')) lastMsg = '🖌️ Whiteboard';
             else if (lastMsg.startsWith('[POLL]')) lastMsg = '📊 Poll';
             else if (lastMsg.startsWith('[LIVE_CLASS_STARTED]')) lastMsg = '🔴 Live class started';
+            else if (lastMsg.startsWith('[LIVE_CLASS_ENDED]')) lastMsg = '⏹️ Live class ended';
         }
         const lastMsgTime = msgData?.length ? new Date(msgData[0].created_at) : new Date(group.created_at);
         sortedGroupsList.push({ ...group, lastMsg, lastMsgTime });
@@ -453,7 +509,6 @@ async function submitAddStudent() {
     if (error) return alert("Failed to add student: " + error.message);
 
     closeAddStudentModal();
-    // Success toast
     const toast = document.createElement('div');
     toast.textContent = `✅ ${userProfile.name || email} added successfully!`;
     toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--wa-teal),var(--wa-light-green));color:white;padding:12px 22px;border-radius:24px;font-weight:600;z-index:9999;box-shadow:0 8px 22px rgba(0,0,0,.25);font-size:14px;';
@@ -463,7 +518,6 @@ async function submitAddStudent() {
     loadMyGroups();
     cacheMemberRoles(activeGroupId);
 }
-// Backward compat (in case any old code calls this)
 async function directAddUser() { return submitAddStudent(); }
 
 /* ============================================================
@@ -472,6 +526,15 @@ async function directAddUser() { return submitAddStudent(); }
 async function openClassroom(id, name, creatorId, uniqueId) {
     if (chatPollingInterval) clearInterval(chatPollingInterval);
     activeGroupId = id; activeGroupCreatorId = creatorId; activeGroupUniqueId = uniqueId; activeGroupName = name;
+    // ✅ reset message hash & shown-call set when switching group
+    lastMessagesHash = '';
+    shownLiveCallIds = new Set();
+    // ✅ reset any previous banner
+    hideLiveBanner();
+    stopLiveHeartbeat();
+    currentLiveCallId = null;
+    currentLiveRoomName = null;
+
     const { data: group } = await supabaseClient.from('groups').select('group_avatar, restrict_messaging').eq('id', id).single();
     activeGroupAvatar = group?.group_avatar || 'https://placehold.co/150';
     restrictMessaging = group?.restrict_messaging || false;
@@ -498,6 +561,23 @@ async function openClassroom(id, name, creatorId, uniqueId) {
     if (currentUserRoleInActiveGroup === 'teacher' || currentUserRoleInActiveGroup === 'admin') {
         if (inviteBtn) inviteBtn.classList.remove('hidden');
         if (callBtn) callBtn.disabled = false;
+
+        // ✅ LIVE CLASS restore: does teacher already have an active call?
+        const { data: activeCall } = await supabaseClient
+            .from('live_calls')
+            .select('*')
+            .eq('group_id', id)
+            .eq('teacher_id', currentUser.id)
+            .eq('active', true)
+            .order('started_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (activeCall) {
+            currentLiveCallId = activeCall.id;
+            currentLiveRoomName = activeCall.room_name;
+            showLiveBanner();
+            startLiveHeartbeat();
+        }
     } else {
         if (inviteBtn) inviteBtn.classList.add('hidden');
         if (callBtn) callBtn.disabled = true;
@@ -593,6 +673,7 @@ async function sendMessage() {
         if (error) return alert("Message send failed!");
         input.value = '';
     }
+    lastMessagesHash = '';
     await loadMessages();
     const box = document.getElementById('chat-messages');
     box.scrollTop = box.scrollHeight;
@@ -620,7 +701,7 @@ async function uploadMedia(file, type, caption) {
 }
 
 /* ============================================================
-   ✅ DELETE FOR ME (localStorage, string-safe)
+   ✅ DELETE FOR ME
    ============================================================ */
 function getDeletedForMe() {
     try { return JSON.parse(localStorage.getItem('deletedForMe') || '[]').map(String); }
@@ -634,10 +715,19 @@ function addDeletedForMe(id) {
 }
 
 /* ============================================================
-   LOAD MESSAGES
+   ✅ LOAD MESSAGES
    ============================================================ */
 async function loadMessages() {
     const chatBox = document.getElementById('chat-messages');
+    if (!chatBox) return;
+
+    // Don't rebuild while any video/audio is playing
+    let hasPlaying = false;
+    chatBox.querySelectorAll('video,audio').forEach(m => {
+        if (!m.paused && !m.ended && m.currentTime > 0.1) hasPlaying = true;
+    });
+    if (hasPlaying) return;
+
     const prevHeight = chatBox.scrollHeight, prevTop = chatBox.scrollTop, clientH = chatBox.clientHeight;
     const distanceFromBottom = prevHeight - prevTop - clientH;
     const isNearBottom = distanceFromBottom < 50;
@@ -648,6 +738,18 @@ async function loadMessages() {
         .eq('group_id', activeGroupId)
         .order('created_at', { ascending: true });
 
+    // Hash check — skip rebuild if nothing changed
+    const hash = (data || []).map(m => [
+        m.id,
+        m.message_text || '',
+        m.edited_at || '',
+        m.deleted_for_everyone ? 1 : 0,
+        m.deleted_by_admin ? 1 : 0
+    ].join('|')).join('||');
+    if (hash === lastMessagesHash && chatBox.children.length > 0) return;
+    lastMessagesHash = hash;
+
+    // Pre-fetch poll votes
     const pollIds = (data || []).filter(m => (m.message_text || '').startsWith('[POLL]')).map(m => m.id);
     let allVotes = [];
     if (pollIds.length > 0) {
@@ -657,6 +759,8 @@ async function loadMessages() {
 
     chatBox.innerHTML = "";
     let newLiveClassUrl = null;
+    let newLiveClassId = null;
+    let newLiveCallId = null;
 
     if (data) {
         const now = new Date();
@@ -664,7 +768,6 @@ async function loadMessages() {
         const deletedForMe = getDeletedForMe();
 
         data.forEach(msg => {
-            // ✅ FIX: String compare for bigint safety — deleted-for-me messages vanish instantly
             if (deletedForMe.includes(String(msg.id))) return;
 
             const isMe = msg.sender_id === currentUser.id;
@@ -691,10 +794,35 @@ async function loadMessages() {
                     : `🚫 This message was deleted`;
                 msgHtml = `<div class="deleted-msg-text">${label}</div>`;
             } else if (txt.startsWith('[LIVE_CLASS_STARTED]')) {
-                const callUrl = txt.replace('[LIVE_CLASS_STARTED]', '');
-                msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #d32f2f; padding: 12px; border-radius: 8px;"><strong>🔴 The Class Has Started!</strong><br><button onclick="window.open('${callUrl}','_self')" style="background:#25D366; color:white; border:none; padding:6px 15px; border-radius:20px; cursor:pointer;">👉 Join Class</button></div>`;
-                const msgTime = new Date(msg.created_at);
-                if (!isMe && (now - msgTime) / 1000 <= 10) newLiveClassUrl = callUrl;
+                const rest = txt.replace('[LIVE_CLASS_STARTED]', '');
+                const parts = rest.split('|');
+                if (parts.length === 2) {
+                    const [callId, callUrl] = parts;
+                    msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #d32f2f; padding: 12px; border-radius: 8px;">
+                        <strong>🔴 The Class Has Started!</strong><br>
+                        <button onclick="joinLiveClassFromMessage('${callId}', '${callUrl}')" style="background:#25D366; color:white; border:none; padding:6px 15px; border-radius:20px; cursor:pointer; margin-top:6px;">👉 Join Class</button>
+                    </div>`;
+                    const msgTime = new Date(msg.created_at);
+                    if (!isMe && (now - msgTime) / 1000 <= 10 && !shownLiveCallIds.has(String(msg.id))) {
+                        newLiveClassUrl = callUrl;
+                        newLiveClassId = String(msg.id);
+                        newLiveCallId = callId;
+                    }
+                } else {
+                    msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #999; padding: 12px; border-radius: 8px; opacity:.7;">
+                        <strong>🔴 Live class</strong> <span style="font-size:12px;color:#999;">(expired)</span><br>
+                        <span style="font-size:12px;color:#888;">This session link is no longer valid.</span>
+                    </div>`;
+                }
+            } else if (txt.startsWith('[LIVE_CLASS_ENDED]')) {
+                const endedCallId = txt.replace('[LIVE_CLASS_ENDED]', '');
+                msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #999; padding: 12px; border-radius: 8px; opacity:.8;">
+                    <strong>⏹️ Live class ended</strong><br>
+                    <span style="font-size:12px;color:#888;">This session is no longer active.</span>
+                </div>`;
+                if (pendingLiveCallId === endedCallId) {
+                    closeIncomingCallPopup();
+                }
             } else if (txt.startsWith('[IMAGE]')) {
                 const url = txt.replace('[IMAGE]', '');
                 msgHtml = `<div class="media-msg"><img src="${url}" onclick="openImagePreview('${url}')" alt="image"></div>`;
@@ -738,7 +866,10 @@ async function loadMessages() {
                 </div>`;
         });
 
-        if (newLiveClassUrl) showIncomingCallPopup(newLiveClassUrl);
+        if (newLiveClassUrl && newLiveClassId) {
+            shownLiveCallIds.add(newLiveClassId);
+            showIncomingCallPopup(newLiveClassUrl, newLiveCallId);
+        }
         if (isNearBottom) chatBox.scrollTop = chatBox.scrollHeight;
         else chatBox.scrollTop = chatBox.scrollHeight - distanceFromBottom - clientH;
     }
@@ -825,21 +956,14 @@ function openMsgActionMenu(event, messageId, senderId, isDeleted) {
    DELETE / EDIT
    ============================================================ */
 function deleteForMe(messageId) {
-    // ✅ Instantly hide from current DOM (before reload)
-    const target = event?.currentTarget?.closest?.('.msg-row');
-    // Fallback: remove message from state and re-render
     addDeletedForMe(messageId);
-
-    // Instant DOM vanish: find and remove the message row by matching data
-    // We added msg.id in the trigger's onclick, so we can find it via the parent bubble
     document.querySelectorAll('.msg-row').forEach(row => {
         const trig = row.querySelector('.msg-actions-trigger');
         if (trig && trig.getAttribute('onclick') && trig.getAttribute('onclick').includes(`'${messageId}'`)) {
             row.remove();
         }
     });
-    // Also async re-render for safety
-    loadMessages();
+    lastMessagesHash = '';
 }
 
 async function deleteForEveryone(messageId, senderId) {
@@ -862,6 +986,7 @@ async function deleteForEveryone(messageId, senderId) {
 
     await supabaseClient.from('poll_votes').delete().eq('message_id', messageId);
 
+    lastMessagesHash = '';
     await loadMessages();
     await loadMyGroups();
 }
@@ -870,7 +995,7 @@ function openEditMessage(messageId) {
     supabaseClient.from('messages').select('message_text').eq('id', messageId).single().then(({ data, error }) => {
         if (error || !data) return alert("Could not load message.");
         const txt = data.message_text || '';
-        if (txt.startsWith('[IMAGE]') || txt.startsWith('[VIDEO]') || txt.startsWith('[AUDIO]') || txt.startsWith('[WHITEBOARD]') || txt.startsWith('[POLL]') || txt.startsWith('[LIVE_CLASS_STARTED]')) {
+        if (txt.startsWith('[IMAGE]') || txt.startsWith('[VIDEO]') || txt.startsWith('[AUDIO]') || txt.startsWith('[WHITEBOARD]') || txt.startsWith('[POLL]') || txt.startsWith('[LIVE_CLASS_STARTED]') || txt.startsWith('[LIVE_CLASS_ENDED]')) {
             return alert("This type of message cannot be edited. You can only delete it.");
         }
         currentEditMessageId = messageId;
@@ -890,11 +1015,12 @@ async function saveEditedMessage() {
     const { error } = await supabaseClient.from('messages').update({ message_text: newText, edited_at: new Date().toISOString() }).eq('id', currentEditMessageId);
     if (error) return alert("Failed: " + error.message);
     closeEditModal();
+    lastMessagesHash = '';
     await loadMessages();
 }
 
 /* ============================================================
-   POLL RENDERING + VOTING
+   POLL
    ============================================================ */
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -946,12 +1072,10 @@ async function votePoll(messageId, optionIndex) {
         const { error } = await supabaseClient.from('poll_votes').insert([{ message_id: midStr, user_id: currentUser.id, option_index: optionIndex }]);
         if (error) return alert("Failed: " + error.message);
     }
+    lastMessagesHash = '';
     await loadMessages();
 }
 
-/* ============================================================
-   POLL CREATION
-   ============================================================ */
 function openPollCreateModal() {
     document.getElementById('plus-menu').classList.add('hidden');
     document.getElementById('plus-btn').classList.remove('open');
@@ -992,15 +1116,18 @@ async function createPoll() {
     }]);
     if (error) return alert("Failed: " + error.message);
     closePollCreateModal();
+    lastMessagesHash = '';
     await loadMessages();
     document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
 }
 
-/* ============================================================
-   LIVE CLASS
-   ============================================================ */
-function showIncomingCallPopup(callUrl) {
+/* ═══════════════════════════════════════════════════════════
+   🔴 SECURE LIVE CLASS SYSTEM
+   ═══════════════════════════════════════════════════════════ */
+
+function showIncomingCallPopup(callUrl, callId) {
     pendingLiveClassUrl = callUrl;
+    pendingLiveCallId = callId;
     document.getElementById('call-group-avatar').src = activeGroupAvatar;
     document.getElementById('call-group-name').innerText = activeGroupName;
     document.getElementById('incoming-call-popup').classList.remove('hidden');
@@ -1008,15 +1135,236 @@ function showIncomingCallPopup(callUrl) {
 function closeIncomingCallPopup() {
     document.getElementById('incoming-call-popup').classList.add('hidden');
     pendingLiveClassUrl = null;
+    pendingLiveCallId = null;
 }
-function joinLiveClass() {
-    if (pendingLiveClassUrl) { window.open(pendingLiveClassUrl, '_self'); closeIncomingCallPopup(); }
+
+/* Student click on popup — verify call is still active */
+async function joinLiveClass() {
+    if (!pendingLiveClassUrl || !pendingLiveCallId) return;
+
+    const { data } = await supabaseClient
+        .from('live_calls')
+        .select('active, last_heartbeat, ended_at')
+        .eq('id', pendingLiveCallId)
+        .maybeSingle();
+
+    if (!data || !data.active || data.ended_at) {
+        closeIncomingCallPopup();
+        return alert("⛔ This class has already ended.\n\nAsk your teacher to start a new session.");
+    }
+
+    const lastBeat = new Date(data.last_heartbeat).getTime();
+    if (Date.now() - lastBeat > 90000) {
+        closeIncomingCallPopup();
+        return alert("⛔ This class appears to be inactive.\n\nPlease wait for the teacher to restart.");
+    }
+
+    window.open(pendingLiveClassUrl, '_self');
+    closeIncomingCallPopup();
 }
-function startClassCall() {
-    if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') return alert("Only Teachers and Admins can start the live class!");
-    const mirotalkUrl = `https://2a14-6781-000a-0000-0007.taild42689.ts.net/join/${activeGroupUniqueId}`;
-    const callNotice = `[LIVE_CLASS_STARTED]${mirotalkUrl}`;
-    supabaseClient.from('messages').insert([{ group_id: activeGroupId, sender_id: currentUser.id, message_text: callNotice }]).then(() => { window.open(mirotalkUrl, '_self'); });
+
+/* Student click on old chat message button */
+async function joinLiveClassFromMessage(callId, callUrl) {
+    const { data } = await supabaseClient
+        .from('live_calls')
+        .select('active, last_heartbeat, ended_at')
+        .eq('id', callId)
+        .maybeSingle();
+
+    if (!data || !data.active || data.ended_at) {
+        return alert("⛔ This class has already ended.\n\nAsk your teacher to start a new session.");
+    }
+    const lastBeat = new Date(data.last_heartbeat).getTime();
+    if (Date.now() - lastBeat > 90000) {
+        return alert("⛔ This class appears to be inactive.\n\nPlease wait for the teacher to restart.");
+    }
+    window.open(callUrl, '_self');
+}
+
+/* Teacher starts a live class */
+async function startClassCall() {
+    if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') {
+        return alert("Only Teachers and Admins can start the live class!");
+    }
+    if (!activeGroupId) return;
+
+    if (currentLiveCallId) {
+        return alert("A live class is already running. Click 'End Class' on the banner first.");
+    }
+
+    // Random room name — makes URL guessing impossible
+    const randomSuffix = Math.random().toString(36).slice(2, 10);
+    const roomName = `mc-${activeGroupUniqueId}-${randomSuffix}`;
+    const mirotalkUrl = `https://2a14-6781-000a-0000-0007.taild42689.ts.net/join/${roomName}`;
+
+    // Deactivate any stale active calls for this group
+    await supabaseClient
+        .from('live_calls')
+        .update({ active: false, ended_at: new Date().toISOString() })
+        .eq('group_id', activeGroupId)
+        .eq('active', true);
+
+    // Create new live_call record
+    const { data: callData, error: callErr } = await supabaseClient
+        .from('live_calls')
+        .insert([{
+            group_id: activeGroupId,
+            teacher_id: currentUser.id,
+            room_name: roomName,
+            active: true
+        }])
+        .select()
+        .single();
+
+    if (callErr) return alert("Failed to start class: " + callErr.message);
+
+    currentLiveCallId = callData.id;
+    currentLiveRoomName = roomName;
+
+    // Open Mirotalk in NEW TAB (app tab stays open for heartbeat)
+    window.open(mirotalkUrl, '_blank');
+
+    // Prompt teacher: join first, then notify students
+    showLiveClassSetupPrompt();
+}
+
+function showLiveClassSetupPrompt() {
+    document.getElementById('live-setup-modal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'live-setup-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML = `
+        <div style="background:var(--card-bg);color:var(--text-color);border-radius:16px;padding:30px 26px;max-width:430px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4);">
+            <div style="width:70px;height:70px;border-radius:50%;background:linear-gradient(135deg,#25D366,#128C7E);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 20px rgba(37,211,102,.4);">
+                <span style="font-size:34px;">🎥</span>
+            </div>
+            <h3 style="margin:0 0 8px;font-size:20px;">Live Class Ready</h3>
+            <p style="font-size:14px;opacity:.85;margin:0 0 6px;line-height:1.5;">Mirotalk has opened in a new tab.</p>
+            <p style="font-size:13px;opacity:.65;margin:0 0 22px;line-height:1.5;">Join the room first, then click the button below to notify students. This prevents students from taking your admin seat.</p>
+            <div style="display:flex;gap:10px;">
+                <button onclick="cancelLiveClassSetup()" style="flex:1;padding:13px;border-radius:12px;border:1px solid #ccc;background:transparent;color:var(--text-color);font-weight:600;cursor:pointer;font-size:14px;">Cancel</button>
+                <button onclick="notifyStudentsOfLiveClass()" style="flex:1.8;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:white;font-weight:700;cursor:pointer;font-size:14px;box-shadow:0 6px 16px rgba(37,211,102,.4);">🔔 Notify Students</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+}
+
+async function notifyStudentsOfLiveClass() {
+    document.getElementById('live-setup-modal')?.remove();
+    if (!currentLiveCallId || !activeGroupId || !currentLiveRoomName) return;
+
+    const mirotalkUrl = `https://2a14-6781-000a-0000-0007.taild42689.ts.net/join/${currentLiveRoomName}`;
+    const callNotice = `[LIVE_CLASS_STARTED]${currentLiveCallId}|${mirotalkUrl}`;
+
+    const { error } = await supabaseClient.from('messages').insert([{
+        group_id: activeGroupId,
+        sender_id: currentUser.id,
+        message_text: callNotice
+    }]);
+    if (error) return alert("Failed to notify students: " + error.message);
+
+    startLiveHeartbeat();
+    showLiveBanner();
+    lastMessagesHash = '';
+    await loadMessages();
+}
+
+async function cancelLiveClassSetup() {
+    document.getElementById('live-setup-modal')?.remove();
+    if (currentLiveCallId) {
+        await supabaseClient
+            .from('live_calls')
+            .update({ active: false, ended_at: new Date().toISOString() })
+            .eq('id', currentLiveCallId);
+    }
+    currentLiveCallId = null;
+    currentLiveRoomName = null;
+}
+
+/* Heartbeat — keeps call alive while teacher's app tab is open */
+function startLiveHeartbeat() {
+    stopLiveHeartbeat();
+    const beat = async () => {
+        if (!currentLiveCallId) return;
+        const { data } = await supabaseClient
+            .from('live_calls')
+            .select('active')
+            .eq('id', currentLiveCallId)
+            .maybeSingle();
+        if (!data || !data.active) {
+            stopLiveHeartbeat();
+            hideLiveBanner();
+            currentLiveCallId = null;
+            currentLiveRoomName = null;
+            return;
+        }
+        await supabaseClient
+            .from('live_calls')
+            .update({ last_heartbeat: new Date().toISOString() })
+            .eq('id', currentLiveCallId);
+    };
+    beat();
+    liveHeartbeatTimer = setInterval(beat, 15000);
+}
+function stopLiveHeartbeat() {
+    if (liveHeartbeatTimer) { clearInterval(liveHeartbeatTimer); liveHeartbeatTimer = null; }
+}
+
+/* Floating banner for teacher */
+function showLiveBanner() {
+    document.getElementById('live-class-banner')?.remove();
+
+    if (!document.getElementById('live-banner-anim')) {
+        const s = document.createElement('style');
+        s.id = 'live-banner-anim';
+        s.textContent = '@keyframes rec-pulse{0%,100%{opacity:1}50%{opacity:.3}}';
+        document.head.appendChild(s);
+    }
+
+    const banner = document.createElement('div');
+    banner.id = 'live-class-banner';
+    banner.style.cssText = 'position:fixed;bottom:20px;right:20px;background:linear-gradient(135deg,#d32f2f,#e74c3c);color:white;padding:14px 20px;border-radius:14px;z-index:9998;box-shadow:0 10px 30px rgba(211,47,47,.5);display:flex;align-items:center;gap:14px;font-weight:600;font-size:14px;';
+    banner.innerHTML = `
+        <span style="display:flex;align-items:center;gap:8px;">
+            <span style="width:12px;height:12px;border-radius:50%;background:white;animation:rec-pulse 1s infinite;"></span>
+            Live Class Running
+        </span>
+        <button onclick="endLiveClass()" style="background:white;color:#d32f2f;border:none;padding:8px 16px;border-radius:20px;font-weight:700;cursor:pointer;font-size:13px;">End Class</button>`;
+    document.body.appendChild(banner);
+}
+function hideLiveBanner() {
+    document.getElementById('live-class-banner')?.remove();
+}
+
+/* Teacher ends class explicitly */
+async function endLiveClass() {
+    if (!currentLiveCallId) return;
+    if (!confirm("End the live class for everyone?")) return;
+
+    const callId = currentLiveCallId;
+    const groupId = activeGroupId;
+
+    await supabaseClient
+        .from('live_calls')
+        .update({ active: false, ended_at: new Date().toISOString() })
+        .eq('id', callId);
+
+    stopLiveHeartbeat();
+    hideLiveBanner();
+    currentLiveCallId = null;
+    currentLiveRoomName = null;
+
+    // Post END message so old join buttons become expired
+    await supabaseClient.from('messages').insert([{
+        group_id: groupId,
+        sender_id: currentUser.id,
+        message_text: `[LIVE_CLASS_ENDED]${callId}`
+    }]);
+
+    lastMessagesHash = '';
+    await loadMessages();
+    alert("✅ Live class ended. Students can no longer join.");
 }
 
 /* ============================================================
@@ -1050,11 +1398,20 @@ function listenToRealtimeData() {
             }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, () => {
-            if (activeGroupId) loadMessages();
+            if (activeGroupId) { lastMessagesHash = ''; loadMessages(); }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
             if (!activeGroupId) return;
-            if (payload.new && String(payload.new.group_id) === String(activeGroupId)) loadMessages();
+            if (payload.new && String(payload.new.group_id) === String(activeGroupId)) {
+                lastMessagesHash = '';
+                loadMessages();
+            }
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_calls' }, (payload) => {
+            // If a call was just ended and it matches our pending popup, close it
+            if (payload.new && !payload.new.active && pendingLiveCallId === payload.new.id) {
+                closeIncomingCallPopup();
+            }
         })
         .subscribe();
     loadNotifications();
@@ -1118,6 +1475,8 @@ function showAuth() {
     document.getElementById('auth-container').classList.remove('hidden');
     document.getElementById('app-container').classList.add('hidden');
     if (chatPollingInterval) { clearInterval(chatPollingInterval); chatPollingInterval = null; }
+    stopLiveHeartbeat();
+    hideLiveBanner();
 }
 
 /* ============================================================
@@ -1184,7 +1543,7 @@ function closeImagePreview() {
 }
 
 /* ============================================================
-   🖌️ ADVANCED WHITEBOARD
+   🖌️ ADVANCED WHITEBOARD — Infinite canvas with panning
    ============================================================ */
 let wbCanvas, wbCtx;
 let wbObjects = [];
@@ -1202,6 +1561,12 @@ let wbIsInited = false;
 let wbImageCache = {};
 let wbPointer = { active: false, mode: null, startX: 0, startY: 0, origBounds: null, origObj: null, handle: null, beforeState: null };
 
+// infinite canvas state
+let wbOffset = { x: 0, y: 0 };
+let wbPanning = false;
+let wbPanStart = { x: 0, y: 0, ox: 0, oy: 0 };
+let wbSpaceHeld = false;
+
 function openWhiteboardNamePrompt() {
     document.getElementById('plus-menu').classList.add('hidden');
     document.getElementById('plus-btn').classList.remove('open');
@@ -1213,12 +1578,14 @@ function createWhiteboard() {
     const name = document.getElementById('wb-name-input').value.trim() || 'Untitled Board';
     wbBoardName = name;
     wbObjects = []; wbUndoStack = []; wbRedoStack = []; wbSelected = null;
+    wbOffset = { x: 0, y: 0 };
     closeWbNamePrompt();
     openWhiteboard();
 }
 function openWhiteboard() {
     document.getElementById('whiteboard-modal').classList.remove('hidden');
     document.getElementById('wb-title-label').innerText = '🖌️ ' + wbBoardName;
+    injectWhiteboardPanButton();
     setTimeout(() => { initWbCanvas(); wbResize(true); renderWhiteboard(); }, 70);
 }
 function closeWhiteboard() {
@@ -1226,6 +1593,7 @@ function closeWhiteboard() {
     document.getElementById('whiteboard-window').classList.remove('wb-fullscreen');
     document.getElementById('wb-fs-btn').innerText = '⛶';
     wbSelected = null; wbTempPath = null; wbTempShape = null;
+    wbPanning = false;
 }
 function initWbCanvas() {
     wbCanvas = document.getElementById('wb-canvas');
@@ -1235,6 +1603,8 @@ function initWbCanvas() {
         wbCanvas.addEventListener('pointermove', wbPointerMove);
         wbCanvas.addEventListener('pointerup', wbPointerUp);
         wbCanvas.addEventListener('pointerleave', wbPointerUp);
+        wbCanvas.addEventListener('contextmenu', e => e.preventDefault());
+        wbCanvas.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
         window.addEventListener('resize', () => wbResize());
         wbIsInited = true;
     }
@@ -1243,26 +1613,8 @@ function wbResize(initial) {
     if (!wbCanvas) return;
     if (document.getElementById('whiteboard-modal').classList.contains('hidden')) return;
     const wrap = wbCanvas.parentElement;
-    const oldW = wbCanvas.width, oldH = wbCanvas.height;
     const newW = wrap.clientWidth, newH = wrap.clientHeight;
-    if (oldW === newW && oldH === newH && !initial) return;
-    if (oldW > 0 && oldH > 0 && !initial) {
-        const sx = newW / oldW, sy = newH / oldH;
-        const sp = p => ({ x: p.x * sx, y: p.y * sy });
-        wbObjects.forEach(obj => {
-            if (obj.type === 'path') obj.points = obj.points.map(sp);
-            else if (['line','arrow','rect','circle','triangle'].includes(obj.type)) {
-                const p1 = sp({ x: obj.x1, y: obj.y1 }), p2 = sp({ x: obj.x2, y: obj.y2 });
-                obj.x1 = p1.x; obj.y1 = p1.y; obj.x2 = p2.x; obj.y2 = p2.y;
-            } else if (obj.type === 'text') {
-                const p = sp({ x: obj.x, y: obj.y });
-                obj.x = p.x; obj.y = p.y; obj.fontSize *= Math.min(sx, sy);
-            } else if (obj.type === 'sticky' || obj.type === 'image') {
-                const p = sp({ x: obj.x, y: obj.y });
-                obj.x = p.x; obj.y = p.y; obj.w *= sx; obj.h *= sy;
-            }
-        });
-    }
+    if (wbCanvas.width === newW && wbCanvas.height === newH && !initial) return;
     wbCanvas.width = newW;
     wbCanvas.height = newH;
     renderWhiteboard();
@@ -1275,13 +1627,16 @@ function wbToggleFullscreen() {
 }
 function wbSetTool(tool) {
     wbTool = tool;
-    ['select','pen','highlighter','eraser','line','arrow','rect','circle','triangle','text','sticky'].forEach(t => {
+    ['select','pan','pen','highlighter','eraser','line','arrow','rect','circle','triangle','text','sticky'].forEach(t => {
         const btn = document.getElementById('wb-tool-' + t);
         if (btn) btn.classList.toggle('active', t === tool);
     });
     if (tool !== 'select') wbSelected = null;
     if (wbCanvas) {
-        wbCanvas.style.cursor = (tool === 'select') ? 'default' : (tool === 'text' || tool === 'sticky') ? 'text' : 'crosshair';
+        if (tool === 'pan') wbCanvas.style.cursor = 'grab';
+        else if (tool === 'select') wbCanvas.style.cursor = 'default';
+        else if (tool === 'text' || tool === 'sticky') wbCanvas.style.cursor = 'text';
+        else wbCanvas.style.cursor = 'crosshair';
         renderWhiteboard();
     }
 }
@@ -1412,12 +1767,15 @@ function drawSelection(obj) {
 }
 function renderWhiteboard() {
     if (!wbCtx) return;
+    wbCtx.setTransform(1, 0, 0, 1, 0, 0);
     wbCtx.fillStyle = '#ffffff';
     wbCtx.fillRect(0, 0, wbCanvas.width, wbCanvas.height);
+    wbCtx.setTransform(1, 0, 0, 1, wbOffset.x, wbOffset.y);
     wbObjects.forEach(drawObject);
     if (wbTempPath) drawObject(wbTempPath);
     if (wbTempShape) drawObject(wbTempShape);
     if (wbSelected && wbTool === 'select') drawSelection(wbSelected);
+    wbCtx.setTransform(1, 0, 0, 1, 0, 0);
 }
 function wbSnapshot() { return JSON.stringify(wbObjects); }
 function wbPushHistory() {
@@ -1479,9 +1837,23 @@ function applyResize(origBounds, origObj, handle, newX, newY) {
 }
 function getWbPos(e) {
     const rect = wbCanvas.getBoundingClientRect();
-    return { x: (e.clientX - rect.left) * (wbCanvas.width / rect.width), y: (e.clientY - rect.top) * (wbCanvas.height / rect.height) };
+    return {
+        x: (e.clientX - rect.left) * (wbCanvas.width / rect.width) - wbOffset.x,
+        y: (e.clientY - rect.top) * (wbCanvas.height / rect.height) - wbOffset.y
+    };
 }
 function wbPointerDown(e) {
+    if (e.button === 1 || wbTool === 'pan' || wbSpaceHeld) {
+        e.preventDefault();
+        wbPanning = true;
+        wbPanStart.x = e.clientX;
+        wbPanStart.y = e.clientY;
+        wbPanStart.ox = wbOffset.x;
+        wbPanStart.oy = wbOffset.y;
+        try { wbCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+        if (wbCanvas) wbCanvas.style.cursor = 'grabbing';
+        return;
+    }
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     const p = getWbPos(e);
     try { wbCanvas.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1523,6 +1895,12 @@ function wbPointerDown(e) {
     }
 }
 function wbPointerMove(e) {
+    if (wbPanning) {
+        wbOffset.x = wbPanStart.ox + (e.clientX - wbPanStart.x);
+        wbOffset.y = wbPanStart.oy + (e.clientY - wbPanStart.y);
+        renderWhiteboard();
+        return;
+    }
     if (!wbPointer.active) return;
     const p = getWbPos(e);
     if (wbPointer.mode === 'draw') { wbTempPath.points.push(p); renderWhiteboard(); return; }
@@ -1532,6 +1910,16 @@ function wbPointerMove(e) {
     if (wbPointer.mode === 'erase') { eraseAt(p.x, p.y); return; }
 }
 function wbPointerUp(e) {
+    if (wbPanning) {
+        wbPanning = false;
+        if (wbCanvas) {
+            if (wbTool === 'pan' || wbSpaceHeld) wbCanvas.style.cursor = 'grab';
+            else if (wbTool === 'select') wbCanvas.style.cursor = 'default';
+            else if (wbTool === 'text' || wbTool === 'sticky') wbCanvas.style.cursor = 'text';
+            else wbCanvas.style.cursor = 'crosshair';
+        }
+        return;
+    }
     if (!wbPointer.active) return;
     wbPointer.active = false;
     const p = getWbPos(e);
@@ -1576,7 +1964,12 @@ function wbInsertImage() {
             const ratio = Math.min(maxW / w, maxH / h, 1);
             w *= ratio; h *= ratio;
             wbPushHistory();
-            wbObjects.push({ id: 'o_' + Date.now(), type: 'image', x: (wbCanvas.width - w) / 2, y: (wbCanvas.height - h) / 2, w, h, url });
+            wbObjects.push({
+                id: 'o_' + Date.now(), type: 'image',
+                x: (wbCanvas.width - w) / 2 - wbOffset.x,
+                y: (wbCanvas.height - h) / 2 - wbOffset.y,
+                w, h, url
+            });
             wbImageCache[url] = img;
             renderWhiteboard();
         };
@@ -1591,7 +1984,12 @@ function _wbExportCanvas() {
     tctx.fillStyle = '#fff'; tctx.fillRect(0, 0, tmp.width, tmp.height);
     const prevSelected = wbSelected;
     wbSelected = null;
-    wbObjects.forEach(obj => { const realCtx = wbCtx; wbCtx = tctx; drawObject(obj); wbCtx = realCtx; });
+    const realCtx = wbCtx;
+    wbCtx = tctx;
+    wbCtx.setTransform(1, 0, 0, 1, wbOffset.x, wbOffset.y);
+    wbObjects.forEach(drawObject);
+    wbCtx.setTransform(1, 0, 0, 1, 0, 0);
+    wbCtx = realCtx;
     wbSelected = prevSelected;
     return tmp;
 }
@@ -1626,6 +2024,7 @@ async function wbSendToGroup() {
     const payload = JSON.stringify({ name: wbBoardName, imgUrl, jsonUrl });
     const { error } = await supabaseClient.from('messages').insert([{ message_text: '[WHITEBOARD]' + payload, sender_id: currentUser.id, group_id: activeGroupId }]);
     if (error) return alert("Send failed: " + error.message);
+    lastMessagesHash = '';
     await loadMessages();
     document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
     alert("✅ Whiteboard sent to group!");
@@ -1633,6 +2032,7 @@ async function wbSendToGroup() {
 async function openWhiteboardFromMessage(wb) {
     wbBoardName = wb.name || 'Board';
     wbObjects = []; wbUndoStack = []; wbRedoStack = []; wbSelected = null;
+    wbOffset = { x: 0, y: 0 };
     if (wb.jsonUrl) {
         try {
             const res = await fetch(wb.jsonUrl);
