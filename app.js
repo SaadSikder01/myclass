@@ -1,5 +1,5 @@
 /* ============================================================
-   MyClassroom - app.js  (Galene Integration)
+   MyClassroom - app.js  (Galene via Supabase Edge Function Proxy)
    ============================================================ */
 
 const SUPABASE_URL = "https://bytnxoltodeckrmwobgc.supabase.co";
@@ -7,8 +7,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const GALENE_BASE_URL   = 'https://2a14-6781-000a-0000-0007.taild42689.ts.net';
 const GALENE_GROUP      = 'classroom';
-const GALENE_ADMIN_USER = 'teacher';
-const GALENE_ADMIN_PASS = 'Teacher123';
+const GALENE_PROXY_URL  = 'https://bytnxoltodeckrmwobgc.supabase.co/functions/v1/galene-proxy';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -881,54 +880,87 @@ async function createPoll() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   GALENE LIVE CLASS
+   GALENE LIVE CLASS (via Supabase Proxy)
    ═══════════════════════════════════════════════════════════ */
 
+/* ✅ Token create — Supabase Edge Function proxy-র মাধ্যমে */
 async function createGaleneToken(permissions, username, expiresInMs) {
     const body = { permissions };
     if (username) body.username = username;
     if (expiresInMs) body.expires = new Date(Date.now() + expiresInMs).toISOString();
+
     try {
-        const res = await fetch(`${GALENE_BASE_URL}/galene-api/v0/.groups/${GALENE_GROUP}/.tokens/`, {
+        const res = await fetch(GALENE_PROXY_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic ' + btoa(`${GALENE_ADMIN_USER}:${GALENE_ADMIN_PASS}`) },
-            body: JSON.stringify(body)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path: `.groups/${GALENE_GROUP}/.tokens/`,
+                body: body,
+            }),
         });
-        if (!res.ok) { console.error('Galene token failed:', res.status, await res.text()); return null; }
-        const location = res.headers.get('Location') || res.headers.get('location');
-        return location ? location.split('/').pop() : null;
-    } catch (e) { console.error('Galene token error:', e); return null; }
+        const data = await res.json();
+        console.log('Galene proxy response:', data);
+        if (data.status !== 201 || !data.location) {
+            console.error('❌ Token creation failed:', data);
+            return null;
+        }
+        return data.location;
+    } catch (e) {
+        console.error('❌ Galene proxy error:', e);
+        return null;
+    }
 }
+
+/* ✅ Token revoke — proxy-র মাধ্যমে (যদি deployed proxy support করে) */
 async function revokeGaleneToken(token) {
     if (!token) return;
     try {
-        await fetch(`${GALENE_BASE_URL}/galene-api/v0/.groups/${GALENE_GROUP}/.tokens/${token}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': 'Basic ' + btoa(`${GALENE_ADMIN_USER}:${GALENE_ADMIN_PASS}`) }
+        await fetch(GALENE_PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path: `.groups/${GALENE_GROUP}/.tokens/${token}`,
+                method: 'DELETE',
+                body: null,
+            }),
         });
-    } catch (e) { console.warn('Token revoke failed:', e); }
+    } catch (e) {
+        console.warn('Token revoke warning (non-critical):', e);
+    }
 }
 
+/* ✅ Teacher: start live class */
 async function startClassCall() {
-    if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') return alert("Only Teachers and Admins can start the live class!");
+    if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') {
+        return alert("Only Teachers and Admins can start the live class!");
+    }
     if (!activeGroupId) return;
-    if (currentLiveCallId && currentGaleneTeacherToken) { openMeetingRoom(currentGaleneTeacherToken, currentUser.user_metadata.name || 'Teacher'); return; }
+
+    if (currentLiveCallId && currentGaleneTeacherToken) {
+        openMeetingRoom(currentGaleneTeacherToken, currentUser.user_metadata.name || 'Teacher');
+        return;
+    }
 
     await supabaseClient.from('live_calls').update({ active: false, ended_at: new Date().toISOString() }).eq('group_id', activeGroupId).eq('active', true);
-    const { data: callData, error: callErr } = await supabaseClient.from('live_calls').insert([{ group_id: activeGroupId, teacher_id: currentUser.id, room_name: GALENE_GROUP, active: true }]).select().single();
+
+    const { data: callData, error: callErr } = await supabaseClient
+        .from('live_calls')
+        .insert([{ group_id: activeGroupId, teacher_id: currentUser.id, room_name: GALENE_GROUP, active: true }])
+        .select().single();
     if (callErr) return alert("Failed to start class: " + callErr.message);
 
     const teacherName = currentUser.user_metadata.name || currentUser.email || 'Teacher';
     const teacherToken = await createGaleneToken(['op'], teacherName, 2 * 60 * 60 * 1000);
     if (!teacherToken) {
         await supabaseClient.from('live_calls').update({ active: false, ended_at: new Date().toISOString() }).eq('id', callData.id);
-        return alert("❌ Failed to create teacher token.\n\nPossible causes:\n1. classroom.json এ 'admin' permission নেই\n2. Galene unreachable\n3. CORS blocked\n\nCheck console log.");
+        return alert("❌ Failed to create teacher token.\n\nPossible causes:\n1. Supabase Edge Function not deployed\n2. Edge Function secret mismatch\n3. Galene server unreachable\n\nCheck browser console for details.");
     }
 
     currentLiveCallId = callData.id;
     currentGaleneTeacherToken = teacherToken;
     sessionStorage.setItem('galene_teacher_token', teacherToken);
     sessionStorage.setItem('galene_call_id', callData.id);
+
     openMeetingRoom(teacherToken, teacherName);
 
     const studentToken = await createGaleneToken([], null, 2 * 60 * 60 * 1000);
@@ -939,10 +971,12 @@ async function startClassCall() {
         const notice = `[LIVE_CLASS_STARTED]${currentLiveCallId}|${baseUrl}|${studentToken}`;
         await supabaseClient.from('messages').insert([{ group_id: activeGroupId, sender_id: currentUser.id, message_text: notice }]);
     }
+
     startLiveHeartbeat(); showLiveBanner();
     lastMessagesHash = ''; await loadMessages();
 }
 
+/* ✅ Student: join from message */
 async function joinLiveClassFromMessage(callId, baseUrl, token) {
     const { data } = await supabaseClient.from('live_calls').select('active, ended_at').eq('id', callId).maybeSingle();
     if (!data || !data.active || data.ended_at) return alert("⛔ This class has already ended.\n\nAsk your teacher to start a new session.");
@@ -965,6 +999,7 @@ function closeIncomingCallPopup() {
     pendingLiveCallId = null; pendingLiveBaseUrl = null; pendingLiveStudentToken = null;
 }
 
+/* ✅ Meeting room iframe control */
 function openMeetingRoom(token, username) {
     const panel = document.getElementById('meeting-room-panel');
     const iframe = document.getElementById('meeting-room-iframe');
@@ -1000,18 +1035,24 @@ function toggleMeetingFullscreen() {
     }
 }
 
+/* ✅ Heartbeat */
 function startLiveHeartbeat() {
     stopLiveHeartbeat();
     const beat = async () => {
         if (!currentLiveCallId) return;
         const { data } = await supabaseClient.from('live_calls').select('active').eq('id', currentLiveCallId).maybeSingle();
-        if (!data || !data.active) { stopLiveHeartbeat(); hideLiveBanner(); currentLiveCallId = null; currentGaleneTeacherToken = null; currentGaleneStudentToken = null; return; }
+        if (!data || !data.active) {
+            stopLiveHeartbeat(); hideLiveBanner();
+            currentLiveCallId = null; currentGaleneTeacherToken = null; currentGaleneStudentToken = null;
+            return;
+        }
         await supabaseClient.from('live_calls').update({ last_heartbeat: new Date().toISOString() }).eq('id', currentLiveCallId);
     };
     beat(); liveHeartbeatTimer = setInterval(beat, 15000);
 }
 function stopLiveHeartbeat() { if (liveHeartbeatTimer) { clearInterval(liveHeartbeatTimer); liveHeartbeatTimer = null; } }
 
+/* ✅ Floating banner for teacher */
 function showLiveBanner() {
     document.getElementById('live-class-banner')?.remove();
     if (!document.getElementById('live-banner-anim')) {
@@ -1028,6 +1069,7 @@ function showLiveBanner() {
 }
 function hideLiveBanner() { document.getElementById('live-class-banner')?.remove(); }
 
+/* ✅ End class */
 async function endLiveClass() {
     if (!currentLiveCallId) return;
     if (!confirm("End the live class for everyone?")) return;
@@ -1036,8 +1078,11 @@ async function endLiveClass() {
     const teacherToken = currentGaleneTeacherToken || sessionStorage.getItem('galene_teacher_token');
     const studentToken = currentGaleneStudentToken || sessionStorage.getItem('galene_student_token');
 
+    // Best-effort token revoke (silently fails if proxy doesn't support DELETE)
     if (teacherToken) await revokeGaleneToken(teacherToken);
     if (studentToken) await revokeGaleneToken(studentToken);
+
+    // CRITICAL: deactivate in DB so new joins are blocked
     await supabaseClient.from('live_calls').update({ active: false, ended_at: new Date().toISOString() }).eq('id', callId);
     await supabaseClient.from('messages').insert([{ group_id: groupId, sender_id: currentUser.id, message_text: `[LIVE_CLASS_ENDED]${callId}` }]);
 
@@ -1048,7 +1093,7 @@ async function endLiveClass() {
     sessionStorage.removeItem('galene_student_token');
 
     lastMessagesHash = ''; await loadMessages();
-    alert("✅ Live class ended. All student tokens revoked.");
+    alert("✅ Live class ended. Students can no longer join.\n\nThe room will auto-lock since the teacher has left.");
 }
 
 /* ============================================================
