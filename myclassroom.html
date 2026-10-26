@@ -961,6 +961,20 @@
             .group-gear-btn { width: 44px; height: 44px; }
             .group-gear-btn svg { width: 24px; height: 24px; }
         }
+
+        /* ============================================================
+           STEP 2: SIGNUP USERNAME FIELD
+           ============================================================ */
+        .signup-username-hint {
+            font-size: 12px;
+            color: #888;
+            margin: -10px 0 12px 4px;
+            line-height: 1.4;
+        }
+        .signup-username-hint strong { color: var(--wa-teal); }
+        #signup-username {
+            text-transform: lowercase;
+        }
     </style>
 </head>
 <body>
@@ -978,6 +992,14 @@
         <div id="signup-form" class="hidden">
             <h3 style="color: var(--wa-dark-green); text-align:center;">Create Account</h3>
             <input type="text" id="signup-name" placeholder="Full Name">
+            <!-- ✅ STEP 2: Username field -->
+            <input type="text" id="signup-username"
+                   placeholder="Username (a-z, 0-9, -)"
+                   autocapitalize="off" autocorrect="off" spellcheck="false">
+            <p class="signup-username-hint">
+                🔗 তোমার website হবে: <strong><span id="signup-username-preview">username</span>.mycls.top</strong>
+            </p>
+            <!-- ✅ END STEP 2 -->
             <input type="email" id="signup-email" placeholder="Email">
             <input type="password" id="signup-password" placeholder="Password">
             <input type="password" id="signup-confirm-password" placeholder="Confirm Password">
@@ -1449,6 +1471,79 @@
         function toggleLeaveGroupModal(s) {
             document.getElementById('leave-group-modal').classList.toggle('hidden', !s);
         }
+
+        /* ============================================================
+           STEP 2: USERNAME FIELD — Live preview + registerUser override
+           (app.js অপরিবর্তিত থাকবে)
+           ============================================================ */
+
+        // 1. Live username preview (lowercase, strip invalid chars)
+        document.getElementById('signup-username')?.addEventListener('input', function () {
+            this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+            const pv = document.getElementById('signup-username-preview');
+            if (pv) pv.textContent = this.value || 'username';
+        });
+
+        // 2. Override registerUser from app.js — includes username + mycls_sites insert
+        window.registerUser = async function () {
+            const nameEl = document.getElementById('signup-name');
+            const userEl = document.getElementById('signup-username');
+            const emailEl = document.getElementById('signup-email');
+            const passEl = document.getElementById('signup-password');
+            const confirmEl = document.getElementById('signup-confirm-password');
+            const avatarEl = document.getElementById('signup-avatar');
+
+            const name = nameEl ? nameEl.value.trim() : '';
+            const username = (userEl?.value || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+            const email = emailEl ? emailEl.value.trim() : '';
+            const password = passEl ? passEl.value : '';
+            const confirmPassword = confirmEl ? confirmEl.value : '';
+            const avatarFile = avatarEl && avatarEl.files[0];
+
+            // Validation
+            if (!name || !email || !password) return alert("Please fill all required fields!");
+            if (password !== confirmPassword) return alert("Passwords don't match!");
+            if (!/^[a-z0-9][a-z0-9-]{2,29}$/.test(username)) {
+                return alert("Username: 3–30 characters, only a-z, 0-9, and -");
+            }
+
+            // Avatar upload (if any)
+            let avatarUrl = "https://placehold.co/150";
+            if (avatarFile) {
+                const filePath = `avatars/${Date.now()}_${avatarFile.name}`;
+                const { error: uploadErr } = await supabaseClient.storage
+                    .from('classroom_uploads').upload(filePath, avatarFile);
+                if (uploadErr) return alert(`Image upload failed: ${uploadErr.message}`);
+                avatarUrl = supabaseClient.storage.from('classroom_uploads')
+                    .getPublicUrl(filePath).data.publicUrl;
+            }
+
+            // Signup
+            const { data, error: signUpErr } = await supabaseClient.auth.signUp({
+                email, password,
+                options: { data: { name, avatar_url: avatarUrl, username } }
+            });
+            if (signUpErr) return alert(signUpErr.message);
+            if (!data.user) return alert("Signup failed. Please try again.");
+
+            // Claim subdomain in mycls_sites
+            const { error: siteErr } = await supabaseClient
+                .from('mycls_sites')
+                .insert({ user_id: data.user.id, username });
+
+            if (siteErr) {
+                if (siteErr.code === '23505') {
+                    return alert(`❌ "${username}.mycls.top" আগেই নেওয়া হয়েছে।\nঅন্য username চেষ্টা করো।`);
+                }
+                if (siteErr.message.toLowerCase().includes('reserved')) {
+                    return alert(`❌ "${username}" reserved name।\nঅন্য নাম নাও।`);
+                }
+                return alert(`Account তৈরি হয়েছে, কিন্তু username save হয়নি: ${siteErr.message}\n\nআবার login করে editor থেকে username set করো।`);
+            }
+
+            alert(`✅ Account তৈরি সফল!\n\n🎉 তোমার website: ${username}.mycls.top\n\nসরাসরি login করো।`);
+            if (typeof toggleAuthForms === 'function') toggleAuthForms(false);
+        };
     </script>
 </body>
 </html>
