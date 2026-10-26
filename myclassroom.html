@@ -1544,6 +1544,109 @@
             alert(`✅ Account তৈরি সফল!\n\n🎉 তোমার website: ${username}.mycls.top\n\nসরাসরি login করো।`);
             if (typeof toggleAuthForms === 'function') toggleAuthForms(false);
         };
+
+
+
+
+
+                /* ============================================================
+           STEP 3: SSO AUTHORIZE ENDPOINT
+           Handles ?sso_authorize=1 — creates one-time code + redirects
+           ============================================================ */
+        (function() {
+            'use strict';
+
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('sso_authorize') !== '1') return;
+
+            const redirectUri = params.get('redirect_uri');
+            const state = params.get('state');
+
+            if (!redirectUri || !state) {
+                document.body.innerHTML = '<h2 style="padding:40px;text-align:center;font-family:system-ui">❌ Invalid SSO request</h2>';
+                return;
+            }
+
+            // Save pending SSO (resumed after login if needed)
+            sessionStorage.setItem('__sso_pending', JSON.stringify({ redirectUri, state }));
+
+            // Clean URL so refresh doesn't retrigger authorize
+            try { window.history.replaceState({}, '', window.location.pathname); } catch(e) {}
+
+            // If already logged in → complete immediately
+            (async () => {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session) await window.__ssoComplete(redirectUri, state);
+            })();
+        })();
+
+        // Lock to prevent double-execution
+        let __ssoInProgress = false;
+
+        window.__ssoComplete = async function(redirectUri, state) {
+            if (__ssoInProgress) return;
+            __ssoInProgress = true;
+
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) {
+                    // Not logged in — save pending, wait for login
+                    sessionStorage.setItem('__sso_pending', JSON.stringify({ redirectUri, state }));
+                    __ssoInProgress = false;
+                    return;
+                }
+
+                // Verify redirect_uri against whitelist
+                const { data: client, error: whitelistErr } = await supabaseClient
+                    .from('sso_clients')
+                    .select('id, redirect_uri')
+                    .eq('redirect_uri', redirectUri)
+                    .maybeSingle();
+
+                if (whitelistErr || !client) {
+                    document.body.innerHTML = '<h2 style="padding:40px;text-align:center;font-family:system-ui">❌ Untrusted redirect_uri</h2>';
+                    return;
+                }
+
+                // Create one-time code (2 min TTL)
+                const code = crypto.randomUUID();
+                const expires = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+
+                const { error } = await supabaseClient.from('sso_codes').insert({
+                    code,
+                    user_id: session.user.id,
+                    redirect_uri: redirectUri,
+                    state,
+                    expires_at: expires
+                });
+
+                if (error) {
+                    document.body.innerHTML = '<h2 style="padding:40px;text-align:center;font-family:system-ui">❌ SSO failed: ' + error.message + '</h2>';
+                    return;
+                }
+
+                sessionStorage.removeItem('__sso_pending');
+
+                // Redirect back to editor with code
+                window.location.href = redirectUri + '?code=' + encodeURIComponent(code) + '&state=' + encodeURIComponent(state);
+            } catch (e) {
+                console.error('SSO error:', e);
+                __ssoInProgress = false;
+            }
+        };
+
+        // Resume pending SSO after login
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (!session) return;
+            const pending = sessionStorage.getItem('__sso_pending');
+            if (!pending) return;
+            try {
+                const { redirectUri, state } = JSON.parse(pending);
+                window.__ssoComplete(redirectUri, state);
+            } catch(e) {
+                console.error('SSO resume failed:', e);
+            }
+        });
     </script>
 </body>
 </html>
