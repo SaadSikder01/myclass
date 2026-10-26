@@ -1,11 +1,14 @@
 /* ============================================================
-   MyClassroom - app.js
-   Includes: Auth, Groups, Chat, Media, Recording, Whiteboard,
-             Poll, Edit/Delete, Add Student, Secure Live Class
+   MyClassroom - app.js  (Galene Integration)
    ============================================================ */
 
 const SUPABASE_URL = "https://bytnxoltodeckrmwobgc.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5dG54b2x0b2RlY2tybXdvYmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNjgwNDYsImV4cCI6MjA5NDg0NDA0Nn0.14nw0jHluWSlQTbrguKpHsXwmDjnirUktpJ_RCE9iHs";
+
+const GALENE_BASE_URL   = 'https://2a14-6781-000a-0000-0007.taild42689.ts.net';
+const GALENE_GROUP      = 'classroom';
+const GALENE_ADMIN_USER = 'teacher';
+const GALENE_ADMIN_PASS = 'Teacher123';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -24,20 +27,19 @@ let currentUser = null,
     currentPopupMemberAvatar = '',
     currentPopupMemberRole = '';
 
-// ✅ media preview & message actions state
 let pendingMedia = null;
 let membersRoleCache = {};
 let currentEditMessageId = null;
-
-// ✅ FIX: skip chat rebuild while media playing + hash cache + live call popup dedup
 let lastMessagesHash = '';
 let shownLiveCallIds = new Set();
 
-// ✅ LIVE CLASS session tracking
 let currentLiveCallId = null;
-let currentLiveRoomName = null;
+let currentGaleneTeacherToken = null;
+let currentGaleneStudentToken = null;
 let liveHeartbeatTimer = null;
 let pendingLiveCallId = null;
+let pendingLiveBaseUrl = null;
+let pendingLiveStudentToken = null;
 
 /* ============================================================
    INIT
@@ -62,16 +64,13 @@ document.addEventListener("DOMContentLoaded", () => {
     observer.observe(document.body, { childList: true, subtree: true });
 
     document.getElementById('media-image-input')?.addEventListener('change', e => {
-        const f = e.target.files[0]; e.target.value = '';
-        if (f) setPendingMedia(f, 'image');
+        const f = e.target.files[0]; e.target.value = ''; if (f) setPendingMedia(f, 'image');
     });
     document.getElementById('media-video-input')?.addEventListener('change', e => {
-        const f = e.target.files[0]; e.target.value = '';
-        if (f) setPendingMedia(f, 'video');
+        const f = e.target.files[0]; e.target.value = ''; if (f) setPendingMedia(f, 'video');
     });
     document.getElementById('media-audio-input')?.addEventListener('change', e => {
-        const f = e.target.files[0]; e.target.value = '';
-        if (f) setPendingMedia(f, 'audio');
+        const f = e.target.files[0]; e.target.value = ''; if (f) setPendingMedia(f, 'audio');
     });
 
     document.getElementById('wb-color')?.addEventListener('input', e => { wbColor = e.target.value; });
@@ -82,8 +81,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const pm = document.getElementById('plus-menu');
         const pb = document.getElementById('plus-btn');
         if (pm && pb && !pm.contains(e.target) && !pb.contains(e.target)) {
-            pm.classList.add('hidden');
-            pb.classList.remove('open');
+            pm.classList.add('hidden'); pb.classList.remove('open');
         }
     });
 
@@ -100,7 +98,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // ✅ Whiteboard keyboard shortcuts (including H for pan)
     document.addEventListener('keydown', (e) => {
         const modal = document.getElementById('whiteboard-modal');
         if (!modal || modal.classList.contains('hidden')) return;
@@ -116,13 +113,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (shortcuts[key]) { e.preventDefault(); wbSetTool(shortcuts[key]); }
     });
 
-    // ✅ Space + drag panning for whiteboard
     document.addEventListener('keydown', e => {
         if (e.code === 'Space') {
             const wbModal = document.getElementById('whiteboard-modal');
             if (wbModal && !wbModal.classList.contains('hidden') && !e.target.closest('input,textarea')) {
-                wbSpaceHeld = true;
-                e.preventDefault();
+                wbSpaceHeld = true; e.preventDefault();
                 if (wbCanvas && !wbPanning) wbCanvas.style.cursor = 'grab';
             }
         }
@@ -140,11 +135,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     setTimeout(injectWhiteboardPanButton, 100);
-
-    // ✅ Stop heartbeat when teacher closes tab
-    window.addEventListener('beforeunload', () => {
-        stopLiveHeartbeat();
-    });
+    window.addEventListener('beforeunload', () => stopLiveHeartbeat());
 });
 
 function injectWhiteboardPanButton() {
@@ -153,7 +144,7 @@ function injectWhiteboardPanButton() {
     if (document.getElementById('wb-tool-pan')) return;
     const panBtn = document.createElement('button');
     panBtn.id = 'wb-tool-pan';
-    panBtn.title = 'Pan / Move Canvas (H · middle-mouse · hold Space)';
+    panBtn.title = 'Pan (H · middle-mouse · hold Space)';
     panBtn.textContent = '✋';
     panBtn.setAttribute('onclick', "wbSetTool('pan')");
     const selectBtn = document.getElementById('wb-tool-select');
@@ -381,7 +372,6 @@ async function openGroupMembersModal() {
     if (error) return alert("Failed to load members!");
     membersRoleCache = {};
     members.forEach(m => membersRoleCache[m.user_id] = m.role);
-
     const listContainer = document.getElementById('classroom-members-list');
     listContainer.innerHTML = "";
     const isCurrentTeacher = (currentUserRoleInActiveGroup === 'teacher'),
@@ -466,12 +456,10 @@ async function actionRequest(reqId, status) {
 }
 
 /* ============================================================
-   ✅ ADD STUDENT MODAL
+   ADD STUDENT
    ============================================================ */
 function openAddStudentModal() {
-    if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') {
-        return alert("Only teachers and admins can add students.");
-    }
+    if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') return alert("Only teachers and admins can add students.");
     if (!activeGroupId) return alert("No active classroom selected.");
     const inp = document.getElementById('add-student-email');
     if (inp) inp.value = '';
@@ -488,35 +476,20 @@ async function submitAddStudent() {
     const email = (input.value || '').trim().toLowerCase();
     if (!email) return alert("Please enter the student's email.");
     if (!activeGroupId) return alert("No active classroom selected.");
-
-    const { data: userProfile, error: profErr } = await supabaseClient
-        .from('profiles').select('id, name').eq('email', email).maybeSingle();
-
+    const { data: userProfile, error: profErr } = await supabaseClient.from('profiles').select('id, name').eq('email', email).maybeSingle();
     if (profErr) return alert("Lookup failed: " + profErr.message);
-    if (!userProfile) {
-        return alert("❌ User not registered.\n\nAsk the student to sign up on MyClassroom first with this email:\n" + email);
-    }
-
-    const { data: existing } = await supabaseClient
-        .from('group_members').select('user_id')
-        .eq('group_id', activeGroupId).eq('user_id', userProfile.id).maybeSingle();
-    if (existing) {
-        return alert(`ℹ️ ${userProfile.name || email} is already a member of this classroom.`);
-    }
-
-    const { error } = await supabaseClient
-        .from('group_members').insert([{ group_id: activeGroupId, user_id: userProfile.id, role: 'student' }]);
+    if (!userProfile) return alert("❌ User not registered.\n\nAsk the student to sign up first with this email:\n" + email);
+    const { data: existing } = await supabaseClient.from('group_members').select('user_id').eq('group_id', activeGroupId).eq('user_id', userProfile.id).maybeSingle();
+    if (existing) return alert(`ℹ️ ${userProfile.name || email} is already a member.`);
+    const { error } = await supabaseClient.from('group_members').insert([{ group_id: activeGroupId, user_id: userProfile.id, role: 'student' }]);
     if (error) return alert("Failed to add student: " + error.message);
-
     closeAddStudentModal();
     const toast = document.createElement('div');
     toast.textContent = `✅ ${userProfile.name || email} added successfully!`;
     toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--wa-teal),var(--wa-light-green));color:white;padding:12px 22px;border-radius:24px;font-weight:600;z-index:9999;box-shadow:0 8px 22px rgba(0,0,0,.25);font-size:14px;';
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 2200);
-
-    loadMyGroups();
-    cacheMemberRoles(activeGroupId);
+    loadMyGroups(); cacheMemberRoles(activeGroupId);
 }
 async function directAddUser() { return submitAddStudent(); }
 
@@ -526,14 +499,8 @@ async function directAddUser() { return submitAddStudent(); }
 async function openClassroom(id, name, creatorId, uniqueId) {
     if (chatPollingInterval) clearInterval(chatPollingInterval);
     activeGroupId = id; activeGroupCreatorId = creatorId; activeGroupUniqueId = uniqueId; activeGroupName = name;
-    // ✅ reset message hash & shown-call set when switching group
-    lastMessagesHash = '';
-    shownLiveCallIds = new Set();
-    // ✅ reset any previous banner
-    hideLiveBanner();
-    stopLiveHeartbeat();
-    currentLiveCallId = null;
-    currentLiveRoomName = null;
+    lastMessagesHash = ''; shownLiveCallIds = new Set();
+    hideLiveBanner(); stopLiveHeartbeat(); closeMeetingRoom();
 
     const { data: group } = await supabaseClient.from('groups').select('group_avatar, restrict_messaging').eq('id', id).single();
     activeGroupAvatar = group?.group_avatar || 'https://placehold.co/150';
@@ -553,7 +520,6 @@ async function openClassroom(id, name, creatorId, uniqueId) {
 
     const { data: memberRole } = await supabaseClient.from('group_members').select('role').eq('group_id', id).eq('user_id', currentUser.id).maybeSingle();
     currentUserRoleInActiveGroup = memberRole ? memberRole.role : 'student';
-
     await cacheMemberRoles(id);
 
     const callBtn = document.getElementById('call-btn');
@@ -561,22 +527,21 @@ async function openClassroom(id, name, creatorId, uniqueId) {
     if (currentUserRoleInActiveGroup === 'teacher' || currentUserRoleInActiveGroup === 'admin') {
         if (inviteBtn) inviteBtn.classList.remove('hidden');
         if (callBtn) callBtn.disabled = false;
-
-        // ✅ LIVE CLASS restore: does teacher already have an active call?
-        const { data: activeCall } = await supabaseClient
-            .from('live_calls')
-            .select('*')
-            .eq('group_id', id)
-            .eq('teacher_id', currentUser.id)
-            .eq('active', true)
-            .order('started_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        if (activeCall) {
-            currentLiveCallId = activeCall.id;
-            currentLiveRoomName = activeCall.room_name;
-            showLiveBanner();
-            startLiveHeartbeat();
+        const savedToken = sessionStorage.getItem('galene_teacher_token');
+        const savedCallId = sessionStorage.getItem('galene_call_id');
+        const savedStudentToken = sessionStorage.getItem('galene_student_token');
+        if (savedToken && savedCallId) {
+            const { data: activeCall } = await supabaseClient.from('live_calls').select('*').eq('id', savedCallId).eq('active', true).maybeSingle();
+            if (activeCall) {
+                currentLiveCallId = activeCall.id;
+                currentGaleneTeacherToken = savedToken;
+                currentGaleneStudentToken = savedStudentToken;
+                showLiveBanner(); startLiveHeartbeat();
+            } else {
+                sessionStorage.removeItem('galene_teacher_token');
+                sessionStorage.removeItem('galene_call_id');
+                sessionStorage.removeItem('galene_student_token');
+            }
         }
     } else {
         if (inviteBtn) inviteBtn.classList.add('hidden');
@@ -602,52 +567,28 @@ function backToGroupList() {
 }
 
 /* ============================================================
-   MEDIA PREVIEW (before send)
+   MEDIA PREVIEW
    ============================================================ */
 function setPendingMedia(file, type) {
     if (!activeGroupId) return;
-    if (restrictMessaging && currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') {
-        return alert("Only teachers and admins can send messages.");
-    }
+    if (restrictMessaging && currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') return alert("Only teachers and admins can send messages.");
     if (file.size > 50 * 1024 * 1024) return alert("File too large (max 50MB).");
-    pendingMedia = { file, type };
-    renderPendingMedia();
+    pendingMedia = { file, type }; renderPendingMedia();
 }
-function clearPendingMedia() {
-    pendingMedia = null;
-    renderPendingMedia();
-}
+function clearPendingMedia() { pendingMedia = null; renderPendingMedia(); }
 function renderPendingMedia() {
     const area = document.getElementById('media-preview-area');
     if (!area) return;
-    if (!pendingMedia) {
-        area.classList.add('hidden');
-        area.innerHTML = '';
-        return;
-    }
+    if (!pendingMedia) { area.classList.add('hidden'); area.innerHTML = ''; return; }
     area.classList.remove('hidden');
     const { file, type } = pendingMedia;
     const sizeKb = (file.size / 1024).toFixed(0);
     const sizeStr = sizeKb > 1024 ? (sizeKb / 1024).toFixed(1) + ' MB' : sizeKb + ' KB';
     let thumbHtml = '';
-    if (type === 'image') {
-        const url = URL.createObjectURL(file);
-        thumbHtml = `<img class="mp-thumb" src="${url}" alt="">`;
-    } else if (type === 'video') {
-        thumbHtml = `<div class="mp-thumb" style="display:flex;align-items:center;justify-content:center;font-size:22px;background:#000;color:#fff;">🎥</div>`;
-    } else {
-        thumbHtml = `<div class="mp-thumb" style="display:flex;align-items:center;justify-content:center;font-size:22px;background:#e0f7fa;color:#00695c;">🎵</div>`;
-    }
-    area.innerHTML = `
-        <div class="media-preview-item">
-            ${thumbHtml}
-            <div class="mp-info">
-                <div class="mp-name">${file.name || (type + ' file')}</div>
-                <div class="mp-size">${sizeStr} · ${type.toUpperCase()}</div>
-            </div>
-            <button class="mp-remove" onclick="clearPendingMedia()" title="Remove">×</button>
-        </div>
-        <div class="mp-caption-hint">Add a caption (optional), then tap Send.</div>`;
+    if (type === 'image') thumbHtml = `<img class="mp-thumb" src="${URL.createObjectURL(file)}" alt="">`;
+    else if (type === 'video') thumbHtml = `<div class="mp-thumb" style="display:flex;align-items:center;justify-content:center;font-size:22px;background:#000;color:#fff;">🎥</div>`;
+    else thumbHtml = `<div class="mp-thumb" style="display:flex;align-items:center;justify-content:center;font-size:22px;background:#e0f7fa;color:#00695c;">🎵</div>`;
+    area.innerHTML = `<div class="media-preview-item">${thumbHtml}<div class="mp-info"><div class="mp-name">${file.name || (type + ' file')}</div><div class="mp-size">${sizeStr} · ${type.toUpperCase()}</div></div><button class="mp-remove" onclick="clearPendingMedia()" title="Remove">×</button></div><div class="mp-caption-hint">Add a caption (optional), then tap Send.</div>`;
 }
 
 /* ============================================================
@@ -657,32 +598,22 @@ async function sendMessage() {
     const input = document.getElementById('message-input');
     const messageText = input.value.trim();
     if (!activeGroupId) return;
-    if (restrictMessaging && currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') {
-        return alert("Only teachers and admins can send messages.");
-    }
+    if (restrictMessaging && currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') return alert("Only teachers and admins can send messages.");
     if (!messageText && !pendingMedia) return;
-
     if (pendingMedia) {
         const { file, type } = pendingMedia;
         const ok = await uploadMedia(file, type, messageText);
-        clearPendingMedia();
-        input.value = '';
+        clearPendingMedia(); input.value = '';
         if (!ok) return;
     } else if (messageText) {
         const { error } = await supabaseClient.from('messages').insert([{ message_text: messageText, sender_id: currentUser.id, group_id: activeGroupId }]);
         if (error) return alert("Message send failed!");
         input.value = '';
     }
-    lastMessagesHash = '';
-    await loadMessages();
-    const box = document.getElementById('chat-messages');
-    box.scrollTop = box.scrollHeight;
+    lastMessagesHash = ''; await loadMessages();
+    const box = document.getElementById('chat-messages'); box.scrollTop = box.scrollHeight;
     input.focus();
 }
-
-/* ============================================================
-   UPLOAD MEDIA
-   ============================================================ */
 async function uploadMedia(file, type, caption) {
     if (!file || !activeGroupId) return false;
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
@@ -693,63 +624,43 @@ async function uploadMedia(file, type, caption) {
     const prefix = type === 'image' ? '[IMAGE]' : type === 'video' ? '[VIDEO]' : '[AUDIO]';
     const { error } = await supabaseClient.from('messages').insert([{ message_text: prefix + url, sender_id: currentUser.id, group_id: activeGroupId }]);
     if (error) { alert("Send failed: " + error.message); return false; }
-
-    if (caption && caption.trim()) {
-        await supabaseClient.from('messages').insert([{ message_text: caption.trim(), sender_id: currentUser.id, group_id: activeGroupId }]);
-    }
+    if (caption && caption.trim()) await supabaseClient.from('messages').insert([{ message_text: caption.trim(), sender_id: currentUser.id, group_id: activeGroupId }]);
     return true;
 }
 
 /* ============================================================
-   ✅ DELETE FOR ME
+   DELETE FOR ME
    ============================================================ */
 function getDeletedForMe() {
     try { return JSON.parse(localStorage.getItem('deletedForMe') || '[]').map(String); }
     catch { return []; }
 }
 function addDeletedForMe(id) {
-    const arr = getDeletedForMe();
-    const sid = String(id);
+    const arr = getDeletedForMe(); const sid = String(id);
     if (!arr.includes(sid)) arr.push(sid);
     localStorage.setItem('deletedForMe', JSON.stringify(arr));
 }
 
 /* ============================================================
-   ✅ LOAD MESSAGES
+   LOAD MESSAGES
    ============================================================ */
 async function loadMessages() {
     const chatBox = document.getElementById('chat-messages');
     if (!chatBox) return;
-
-    // Don't rebuild while any video/audio is playing
     let hasPlaying = false;
-    chatBox.querySelectorAll('video,audio').forEach(m => {
-        if (!m.paused && !m.ended && m.currentTime > 0.1) hasPlaying = true;
-    });
+    chatBox.querySelectorAll('video,audio').forEach(m => { if (!m.paused && !m.ended && m.currentTime > 0.1) hasPlaying = true; });
     if (hasPlaying) return;
 
     const prevHeight = chatBox.scrollHeight, prevTop = chatBox.scrollTop, clientH = chatBox.clientHeight;
     const distanceFromBottom = prevHeight - prevTop - clientH;
     const isNearBottom = distanceFromBottom < 50;
 
-    const { data } = await supabaseClient
-        .from('messages')
-        .select('id, message_text, sender_id, created_at, edited_at, deleted_for_everyone, deleted_by_admin, deleted_by_name, profiles(name, avatar_url)')
-        .eq('group_id', activeGroupId)
-        .order('created_at', { ascending: true });
+    const { data } = await supabaseClient.from('messages').select('id, message_text, sender_id, created_at, edited_at, deleted_for_everyone, deleted_by_admin, deleted_by_name, profiles(name, avatar_url)').eq('group_id', activeGroupId).order('created_at', { ascending: true });
 
-    // Hash check — skip rebuild if nothing changed
-    const hash = (data || []).map(m => [
-        m.id,
-        m.message_text || '',
-        m.edited_at || '',
-        m.deleted_for_everyone ? 1 : 0,
-        m.deleted_by_admin ? 1 : 0
-    ].join('|')).join('||');
+    const hash = (data || []).map(m => [m.id, m.message_text || '', m.edited_at || '', m.deleted_for_everyone ? 1 : 0, m.deleted_by_admin ? 1 : 0].join('|')).join('||');
     if (hash === lastMessagesHash && chatBox.children.length > 0) return;
     lastMessagesHash = hash;
 
-    // Pre-fetch poll votes
     const pollIds = (data || []).filter(m => (m.message_text || '').startsWith('[POLL]')).map(m => m.id);
     let allVotes = [];
     if (pollIds.length > 0) {
@@ -758,9 +669,7 @@ async function loadMessages() {
     }
 
     chatBox.innerHTML = "";
-    let newLiveClassUrl = null;
-    let newLiveClassId = null;
-    let newLiveCallId = null;
+    let newLiveCallPayload = null;
 
     if (data) {
         const now = new Date();
@@ -769,19 +678,12 @@ async function loadMessages() {
 
         data.forEach(msg => {
             if (deletedForMe.includes(String(msg.id))) return;
-
             const isMe = msg.sender_id === currentUser.id;
             let avatarUrl, senderName;
             if (isMe) { avatarUrl = myFreshAvatar; senderName = 'You'; }
             else { avatarUrl = msg.profiles?.avatar_url || 'https://placehold.co/30'; senderName = msg.profiles?.name || 'Unknown'; }
-
             const senderRole = membersRoleCache[msg.sender_id] || 'Member';
-            const memberJson = encodeURIComponent(JSON.stringify({
-                user_id: msg.sender_id,
-                name: senderName,
-                avatar_url: avatarUrl,
-                role: senderRole
-            }));
+            const memberJson = encodeURIComponent(JSON.stringify({ user_id: msg.sender_id, name: senderName, avatar_url: avatarUrl, role: senderRole }));
 
             let msgHtml;
             const txt = msg.message_text || '';
@@ -789,40 +691,21 @@ async function loadMessages() {
             const isEdited = !!msg.edited_at;
 
             if (isDeleted) {
-                const label = msg.deleted_by_admin
-                    ? `🚫 This message was deleted${msg.deleted_by_name ? ` by ${msg.deleted_by_name}` : ' by admin or teacher'}`
-                    : `🚫 This message was deleted`;
+                const label = msg.deleted_by_admin ? `🚫 This message was deleted${msg.deleted_by_name ? ` by ${msg.deleted_by_name}` : ' by admin or teacher'}` : `🚫 This message was deleted`;
                 msgHtml = `<div class="deleted-msg-text">${label}</div>`;
             } else if (txt.startsWith('[LIVE_CLASS_STARTED]')) {
                 const rest = txt.replace('[LIVE_CLASS_STARTED]', '');
                 const parts = rest.split('|');
-                if (parts.length === 2) {
-                    const [callId, callUrl] = parts;
-                    msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #d32f2f; padding: 12px; border-radius: 8px;">
-                        <strong>🔴 The Class Has Started!</strong><br>
-                        <button onclick="joinLiveClassFromMessage('${callId}', '${callUrl}')" style="background:#25D366; color:white; border:none; padding:6px 15px; border-radius:20px; cursor:pointer; margin-top:6px;">👉 Join Class</button>
-                    </div>`;
+                if (parts.length === 3) {
+                    const [callId, baseUrl, token] = parts;
+                    msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #d32f2f; padding: 12px; border-radius: 8px;"><strong>🔴 The Class Has Started!</strong><br><button onclick="joinLiveClassFromMessage('${callId}', '${baseUrl}', '${token}')" style="background:#25D366; color:white; border:none; padding:6px 15px; border-radius:20px; cursor:pointer; margin-top:6px;">👉 Join Class</button></div>`;
                     const msgTime = new Date(msg.created_at);
-                    if (!isMe && (now - msgTime) / 1000 <= 10 && !shownLiveCallIds.has(String(msg.id))) {
-                        newLiveClassUrl = callUrl;
-                        newLiveClassId = String(msg.id);
-                        newLiveCallId = callId;
-                    }
+                    if (!isMe && (now - msgTime) / 1000 <= 10 && !shownLiveCallIds.has(String(msg.id))) newLiveCallPayload = { callId, baseUrl, token, msgId: String(msg.id) };
                 } else {
-                    msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #999; padding: 12px; border-radius: 8px; opacity:.7;">
-                        <strong>🔴 Live class</strong> <span style="font-size:12px;color:#999;">(expired)</span><br>
-                        <span style="font-size:12px;color:#888;">This session link is no longer valid.</span>
-                    </div>`;
+                    msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #999; padding: 12px; border-radius: 8px; opacity:.7;"><strong>🔴 Live class</strong> <span style="font-size:12px;color:#999;">(expired)</span></div>`;
                 }
             } else if (txt.startsWith('[LIVE_CLASS_ENDED]')) {
-                const endedCallId = txt.replace('[LIVE_CLASS_ENDED]', '');
-                msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #999; padding: 12px; border-radius: 8px; opacity:.8;">
-                    <strong>⏹️ Live class ended</strong><br>
-                    <span style="font-size:12px;color:#888;">This session is no longer active.</span>
-                </div>`;
-                if (pendingLiveCallId === endedCallId) {
-                    closeIncomingCallPopup();
-                }
+                msgHtml = `<div style="background: var(--card-bg); border-left: 5px solid #999; padding: 12px; border-radius: 8px; opacity:.8;"><strong>⏹️ Live class ended</strong></div>`;
             } else if (txt.startsWith('[IMAGE]')) {
                 const url = txt.replace('[IMAGE]', '');
                 msgHtml = `<div class="media-msg"><img src="${url}" onclick="openImagePreview('${url}')" alt="image"></div>`;
@@ -847,28 +730,13 @@ async function loadMessages() {
             } else {
                 msgHtml = `<div class="text">${txt}</div>`;
             }
-
             const editedTag = (isEdited && !isDeleted) ? '<span class="edited-tag">(edited)</span>' : '';
-
-            chatBox.innerHTML += `
-                <div class="msg-row ${isMe ? 'me' : 'them'}">
-                    <div class="bubble">
-                        <div class="msg-actions-trigger" onclick="openMsgActionMenu(event, '${msg.id}', '${msg.sender_id}', ${isDeleted})" title="More">
-                            <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
-                        </div>
-                        <div class="sender-name">
-                            <img class="msg-avatar" src="${avatarUrl}" onclick="event.stopPropagation(); showMemberProfile(JSON.parse(decodeURIComponent('${memberJson}')))" />
-                            <span class="sender-name-link" onclick="event.stopPropagation(); showMemberProfile(JSON.parse(decodeURIComponent('${memberJson}')))">${senderName}</span>
-                            ${editedTag}
-                        </div>
-                        ${msgHtml}
-                    </div>
-                </div>`;
+            chatBox.innerHTML += `<div class="msg-row ${isMe ? 'me' : 'them'}"><div class="bubble"><div class="msg-actions-trigger" onclick="openMsgActionMenu(event, '${msg.id}', '${msg.sender_id}', ${isDeleted})" title="More"><svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg></div><div class="sender-name"><img class="msg-avatar" src="${avatarUrl}" onclick="event.stopPropagation(); showMemberProfile(JSON.parse(decodeURIComponent('${memberJson}')))" /><span class="sender-name-link" onclick="event.stopPropagation(); showMemberProfile(JSON.parse(decodeURIComponent('${memberJson}')))">${senderName}</span>${editedTag}</div>${msgHtml}</div></div>`;
         });
 
-        if (newLiveClassUrl && newLiveClassId) {
-            shownLiveCallIds.add(newLiveClassId);
-            showIncomingCallPopup(newLiveClassUrl, newLiveCallId);
+        if (newLiveCallPayload) {
+            shownLiveCallIds.add(newLiveCallPayload.msgId);
+            showIncomingCallPopup(newLiveCallPayload.callId, newLiveCallPayload.baseUrl, newLiveCallPayload.token);
         }
         if (isNearBottom) chatBox.scrollTop = chatBox.scrollHeight;
         else chatBox.scrollTop = chatBox.scrollHeight - distanceFromBottom - clientH;
@@ -876,217 +744,116 @@ async function loadMessages() {
 }
 
 /* ============================================================
-   MESSAGE ACTION MENU (3-dot)
+   MESSAGE ACTION MENU
    ============================================================ */
 function openMsgActionMenu(event, messageId, senderId, isDeleted) {
-    event.stopPropagation();
-    event.preventDefault();
-
+    event.stopPropagation(); event.preventDefault();
     document.querySelectorAll('.msg-action-menu').forEach(m => m.remove());
     if (isDeleted) return;
-
     const isMe = String(senderId) === String(currentUser.id);
     const isAdminOrTeacher = currentUserRoleInActiveGroup === 'teacher' || currentUserRoleInActiveGroup === 'admin';
-
     const items = [];
-
-    if (isMe) {
-        items.push({
-            icon: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
-            label: 'Edit Message',
-            action: () => openEditMessage(messageId)
-        });
-    }
-
-    items.push({
-        icon: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
-        label: 'Delete for me',
-        danger: true,
-        action: () => deleteForMe(messageId)
-    });
-
-    if (isMe || isAdminOrTeacher) {
-        items.push({
-            icon: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
-            label: isMe ? 'Delete for everyone' : 'Delete for everyone (as admin)',
-            danger: true,
-            action: () => deleteForEveryone(messageId, senderId)
-        });
-    }
+    if (isMe) items.push({ icon: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>', label: 'Edit Message', action: () => openEditMessage(messageId) });
+    items.push({ icon: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>', label: 'Delete for me', danger: true, action: () => deleteForMe(messageId) });
+    if (isMe || isAdminOrTeacher) items.push({ icon: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>', label: isMe ? 'Delete for everyone' : 'Delete for everyone (as admin)', danger: true, action: () => deleteForEveryone(messageId, senderId) });
 
     const menu = document.createElement('div');
-    menu.className = 'msg-action-menu';
-    menu.id = 'msg-action-menu';
+    menu.className = 'msg-action-menu'; menu.id = 'msg-action-menu';
     items.forEach(it => {
         const div = document.createElement('div');
         div.className = 'ma-item' + (it.danger ? ' danger' : '');
         div.innerHTML = `${it.icon}<span>${it.label}</span>`;
-        div.onclick = (ev) => {
-            ev.stopPropagation();
-            menu.remove();
-            it.action();
-        };
+        div.onclick = (ev) => { ev.stopPropagation(); menu.remove(); it.action(); };
         menu.appendChild(div);
     });
     document.body.appendChild(menu);
 
     const rect = event.currentTarget.getBoundingClientRect();
-    const menuW = menu.offsetWidth || 200;
-    const menuH = menu.offsetHeight || 100;
-    let left = rect.right - menuW;
-    let top = rect.bottom + 6;
+    const menuW = menu.offsetWidth || 200, menuH = menu.offsetHeight || 100;
+    let left = rect.right - menuW, top = rect.bottom + 6;
     if (left < 8) left = 8;
     if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
     if (top + menuH > window.innerHeight - 8) top = rect.top - menuH - 6;
-    menu.style.left = left + 'px';
-    menu.style.top = top + 'px';
-
+    menu.style.left = left + 'px'; menu.style.top = top + 'px';
     setTimeout(() => {
-        const closer = (e) => {
-            if (!menu.contains(e.target)) {
-                menu.remove();
-                document.removeEventListener('click', closer);
-            }
-        };
+        const closer = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', closer); } };
         document.addEventListener('click', closer);
     }, 10);
 }
 
-/* ============================================================
-   DELETE / EDIT
-   ============================================================ */
 function deleteForMe(messageId) {
     addDeletedForMe(messageId);
     document.querySelectorAll('.msg-row').forEach(row => {
         const trig = row.querySelector('.msg-actions-trigger');
-        if (trig && trig.getAttribute('onclick') && trig.getAttribute('onclick').includes(`'${messageId}'`)) {
-            row.remove();
-        }
+        if (trig && trig.getAttribute('onclick') && trig.getAttribute('onclick').includes(`'${messageId}'`)) row.remove();
     });
     lastMessagesHash = '';
 }
-
 async function deleteForEveryone(messageId, senderId) {
     const isMe = String(senderId) === String(currentUser.id);
     const isAdminOrTeacher = currentUserRoleInActiveGroup === 'teacher' || currentUserRoleInActiveGroup === 'admin';
-
     if (!isMe && !isAdminOrTeacher) return alert("You can't delete this message.");
-
-    const confirmMsg = isMe
-        ? "Delete this message for everyone?"
-        : "Delete this message for everyone as admin/teacher?";
-    if (!confirm(confirmMsg)) return;
-
-    const updateData = isMe
-        ? { message_text: '', deleted_for_everyone: true }
-        : { message_text: '', deleted_for_everyone: true, deleted_by_admin: true, deleted_by_name: currentUser.user_metadata.name || currentUser.email };
-
+    if (!confirm(isMe ? "Delete this message for everyone?" : "Delete this message for everyone as admin/teacher?")) return;
+    const updateData = isMe ? { message_text: '', deleted_for_everyone: true } : { message_text: '', deleted_for_everyone: true, deleted_by_admin: true, deleted_by_name: currentUser.user_metadata.name || currentUser.email };
     const { error } = await supabaseClient.from('messages').update(updateData).eq('id', messageId);
     if (error) return alert("Failed: " + error.message);
-
     await supabaseClient.from('poll_votes').delete().eq('message_id', messageId);
-
-    lastMessagesHash = '';
-    await loadMessages();
-    await loadMyGroups();
+    lastMessagesHash = ''; await loadMessages(); await loadMyGroups();
 }
-
 function openEditMessage(messageId) {
     supabaseClient.from('messages').select('message_text').eq('id', messageId).single().then(({ data, error }) => {
         if (error || !data) return alert("Could not load message.");
         const txt = data.message_text || '';
-        if (txt.startsWith('[IMAGE]') || txt.startsWith('[VIDEO]') || txt.startsWith('[AUDIO]') || txt.startsWith('[WHITEBOARD]') || txt.startsWith('[POLL]') || txt.startsWith('[LIVE_CLASS_STARTED]') || txt.startsWith('[LIVE_CLASS_ENDED]')) {
-            return alert("This type of message cannot be edited. You can only delete it.");
-        }
+        if (txt.startsWith('[')) return alert("This type of message cannot be edited. You can only delete it.");
         currentEditMessageId = messageId;
         document.getElementById('edit-message-input').value = txt;
         document.getElementById('edit-message-modal').classList.remove('hidden');
         setTimeout(() => document.getElementById('edit-message-input').focus(), 100);
     });
 }
-function closeEditModal() {
-    currentEditMessageId = null;
-    document.getElementById('edit-message-modal').classList.add('hidden');
-}
+function closeEditModal() { currentEditMessageId = null; document.getElementById('edit-message-modal').classList.add('hidden'); }
 async function saveEditedMessage() {
     if (!currentEditMessageId) return;
     const newText = document.getElementById('edit-message-input').value.trim();
     if (!newText) return alert("Message can't be empty.");
     const { error } = await supabaseClient.from('messages').update({ message_text: newText, edited_at: new Date().toISOString() }).eq('id', currentEditMessageId);
     if (error) return alert("Failed: " + error.message);
-    closeEditModal();
-    lastMessagesHash = '';
-    await loadMessages();
+    closeEditModal(); lastMessagesHash = ''; await loadMessages();
 }
 
 /* ============================================================
    POLL
    ============================================================ */
-function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
 function renderPollHtml(messageId, poll, votes) {
     const totalVotes = votes.length;
     const myVote = votes.find(v => String(v.user_id) === String(currentUser.id));
     const myOption = myVote ? myVote.option_index : -1;
-
     let optionsHtml = '';
     poll.options.forEach((opt, idx) => {
         const count = votes.filter(v => v.option_index === idx).length;
         const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-        const voted = myOption === idx;
-        optionsHtml += `
-            <div class="poll-opt ${voted ? 'voted' : ''}" onclick="votePoll('${messageId}', ${idx})">
-                <div class="poll-bar" style="width:${pct}%"></div>
-                <div class="poll-opt-content">
-                    <span class="poll-opt-text">${escapeHtml(opt)}</span>
-                    <span class="poll-opt-count">${count} · ${pct}%</span>
-                </div>
-            </div>`;
+        optionsHtml += `<div class="poll-opt ${myOption === idx ? 'voted' : ''}" onclick="votePoll('${messageId}', ${idx})"><div class="poll-bar" style="width:${pct}%"></div><div class="poll-opt-content"><span class="poll-opt-text">${escapeHtml(opt)}</span><span class="poll-opt-count">${count} · ${pct}%</span></div></div>`;
     });
-
-    return `
-        <div class="poll-msg">
-            <div class="poll-q">📊 <span>${escapeHtml(poll.question)}</span> <span class="poll-badge">Poll</span></div>
-            ${optionsHtml}
-            <div class="poll-total">
-                <span>${totalVotes} vote${totalVotes !== 1 ? 's' : ''}</span>
-                ${myVote ? `<span>✓ You voted</span>` : `<span style="opacity:.7">Tap to vote</span>`}
-            </div>
-        </div>`;
+    return `<div class="poll-msg"><div class="poll-q">📊 <span>${escapeHtml(poll.question)}</span> <span class="poll-badge">Poll</span></div>${optionsHtml}<div class="poll-total"><span>${totalVotes} vote${totalVotes !== 1 ? 's' : ''}</span>${myVote ? `<span>✓ You voted</span>` : `<span style="opacity:.7">Tap to vote</span>`}</div></div>`;
 }
 async function votePoll(messageId, optionIndex) {
     if (!currentUser || !messageId) return;
     const midStr = String(messageId);
-    const { data: existing, error: selErr } = await supabaseClient.from('poll_votes').select('id, option_index').eq('message_id', midStr).eq('user_id', currentUser.id).maybeSingle();
-    if (selErr) { console.warn(selErr); }
+    const { data: existing } = await supabaseClient.from('poll_votes').select('id, option_index').eq('message_id', midStr).eq('user_id', currentUser.id).maybeSingle();
     if (existing) {
-        if (existing.option_index === optionIndex) {
-            const { error } = await supabaseClient.from('poll_votes').delete().eq('id', existing.id);
-            if (error) return alert("Failed: " + error.message);
-        } else {
-            const { error } = await supabaseClient.from('poll_votes').update({ option_index: optionIndex }).eq('id', existing.id);
-            if (error) return alert("Failed: " + error.message);
-        }
-    } else {
-        const { error } = await supabaseClient.from('poll_votes').insert([{ message_id: midStr, user_id: currentUser.id, option_index: optionIndex }]);
-        if (error) return alert("Failed: " + error.message);
-    }
-    lastMessagesHash = '';
-    await loadMessages();
+        if (existing.option_index === optionIndex) await supabaseClient.from('poll_votes').delete().eq('id', existing.id);
+        else await supabaseClient.from('poll_votes').update({ option_index: optionIndex }).eq('id', existing.id);
+    } else await supabaseClient.from('poll_votes').insert([{ message_id: midStr, user_id: currentUser.id, option_index: optionIndex }]);
+    lastMessagesHash = ''; await loadMessages();
 }
-
 function openPollCreateModal() {
     document.getElementById('plus-menu').classList.add('hidden');
     document.getElementById('plus-btn').classList.remove('open');
-    if (restrictMessaging && currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') {
-        return alert("Only teachers and admins can create polls when messaging is restricted.");
-    }
+    if (restrictMessaging && currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') return alert("Only teachers and admins can create polls when messaging is restricted.");
     document.getElementById('poll-question').value = '';
     const list = document.getElementById('poll-options-list');
-    list.innerHTML = '';
-    addPollOptionField();
-    addPollOptionField();
+    list.innerHTML = ''; addPollOptionField(); addPollOptionField();
     document.getElementById('poll-create-modal').classList.remove('hidden');
     setTimeout(() => document.getElementById('poll-question').focus(), 100);
 }
@@ -1097,7 +864,7 @@ function addPollOptionField() {
     const idx = list.children.length + 1;
     const div = document.createElement('div');
     div.style.cssText = 'display:flex; gap:6px; margin-bottom:8px; align-items:center;';
-    div.innerHTML = `<input type="text" class="poll-option-input" placeholder="Option ${idx}" style="margin:0; flex:1; min-width:0;" autocomplete="off" maxlength="120"><button type="button" onclick="this.parentElement.remove()" title="Remove" style="background:#d32f2f; border:none; color:white; border-radius:50%; width:34px; height:34px; padding:0; font-size:18px; line-height:1; cursor:pointer; flex-shrink:0;">×</button>`;
+    div.innerHTML = `<input type="text" class="poll-option-input" placeholder="Option ${idx}" style="margin:0; flex:1; min-width:0;" maxlength="120"><button type="button" onclick="this.parentElement.remove()" title="Remove" style="background:#d32f2f; border:none; color:white; border-radius:50%; width:34px; height:34px; padding:0; font-size:18px; cursor:pointer; flex-shrink:0;">×</button>`;
     list.appendChild(div);
 }
 async function createPoll() {
@@ -1107,264 +874,181 @@ async function createPoll() {
     const options = [];
     inputs.forEach(inp => { const v = inp.value.trim(); if (v) options.push(v); });
     if (options.length < 2) return alert("Need at least 2 options.");
-
-    const pollData = { question, options };
-    const { error } = await supabaseClient.from('messages').insert([{
-        message_text: '[POLL]' + JSON.stringify(pollData),
-        sender_id: currentUser.id,
-        group_id: activeGroupId
-    }]);
+    const { error } = await supabaseClient.from('messages').insert([{ message_text: '[POLL]' + JSON.stringify({ question, options }), sender_id: currentUser.id, group_id: activeGroupId }]);
     if (error) return alert("Failed: " + error.message);
-    closePollCreateModal();
-    lastMessagesHash = '';
-    await loadMessages();
+    closePollCreateModal(); lastMessagesHash = ''; await loadMessages();
     document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   🔴 SECURE LIVE CLASS SYSTEM
+   GALENE LIVE CLASS
    ═══════════════════════════════════════════════════════════ */
 
-function showIncomingCallPopup(callUrl, callId) {
-    pendingLiveClassUrl = callUrl;
-    pendingLiveCallId = callId;
+async function createGaleneToken(permissions, username, expiresInMs) {
+    const body = { permissions };
+    if (username) body.username = username;
+    if (expiresInMs) body.expires = new Date(Date.now() + expiresInMs).toISOString();
+    try {
+        const res = await fetch(`${GALENE_BASE_URL}/galene-api/v0/.groups/${GALENE_GROUP}/.tokens/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic ' + btoa(`${GALENE_ADMIN_USER}:${GALENE_ADMIN_PASS}`) },
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) { console.error('Galene token failed:', res.status, await res.text()); return null; }
+        const location = res.headers.get('Location') || res.headers.get('location');
+        return location ? location.split('/').pop() : null;
+    } catch (e) { console.error('Galene token error:', e); return null; }
+}
+async function revokeGaleneToken(token) {
+    if (!token) return;
+    try {
+        await fetch(`${GALENE_BASE_URL}/galene-api/v0/.groups/${GALENE_GROUP}/.tokens/${token}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Basic ' + btoa(`${GALENE_ADMIN_USER}:${GALENE_ADMIN_PASS}`) }
+        });
+    } catch (e) { console.warn('Token revoke failed:', e); }
+}
+
+async function startClassCall() {
+    if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') return alert("Only Teachers and Admins can start the live class!");
+    if (!activeGroupId) return;
+    if (currentLiveCallId && currentGaleneTeacherToken) { openMeetingRoom(currentGaleneTeacherToken, currentUser.user_metadata.name || 'Teacher'); return; }
+
+    await supabaseClient.from('live_calls').update({ active: false, ended_at: new Date().toISOString() }).eq('group_id', activeGroupId).eq('active', true);
+    const { data: callData, error: callErr } = await supabaseClient.from('live_calls').insert([{ group_id: activeGroupId, teacher_id: currentUser.id, room_name: GALENE_GROUP, active: true }]).select().single();
+    if (callErr) return alert("Failed to start class: " + callErr.message);
+
+    const teacherName = currentUser.user_metadata.name || currentUser.email || 'Teacher';
+    const teacherToken = await createGaleneToken(['op'], teacherName, 2 * 60 * 60 * 1000);
+    if (!teacherToken) {
+        await supabaseClient.from('live_calls').update({ active: false, ended_at: new Date().toISOString() }).eq('id', callData.id);
+        return alert("❌ Failed to create teacher token.\n\nPossible causes:\n1. classroom.json এ 'admin' permission নেই\n2. Galene unreachable\n3. CORS blocked\n\nCheck console log.");
+    }
+
+    currentLiveCallId = callData.id;
+    currentGaleneTeacherToken = teacherToken;
+    sessionStorage.setItem('galene_teacher_token', teacherToken);
+    sessionStorage.setItem('galene_call_id', callData.id);
+    openMeetingRoom(teacherToken, teacherName);
+
+    const studentToken = await createGaleneToken([], null, 2 * 60 * 60 * 1000);
+    if (studentToken) {
+        currentGaleneStudentToken = studentToken;
+        sessionStorage.setItem('galene_student_token', studentToken);
+        const baseUrl = `${GALENE_BASE_URL}/group/${GALENE_GROUP}/`;
+        const notice = `[LIVE_CLASS_STARTED]${currentLiveCallId}|${baseUrl}|${studentToken}`;
+        await supabaseClient.from('messages').insert([{ group_id: activeGroupId, sender_id: currentUser.id, message_text: notice }]);
+    }
+    startLiveHeartbeat(); showLiveBanner();
+    lastMessagesHash = ''; await loadMessages();
+}
+
+async function joinLiveClassFromMessage(callId, baseUrl, token) {
+    const { data } = await supabaseClient.from('live_calls').select('active, ended_at').eq('id', callId).maybeSingle();
+    if (!data || !data.active || data.ended_at) return alert("⛔ This class has already ended.\n\nAsk your teacher to start a new session.");
+    const myName = currentUser.user_metadata.name || currentUser.email || 'Student';
+    window.open(`${baseUrl}?token=${encodeURIComponent(token)}&username=${encodeURIComponent(myName)}`, '_blank');
+}
+function joinLiveClass() {
+    if (!pendingLiveCallId || !pendingLiveBaseUrl || !pendingLiveStudentToken) { closeIncomingCallPopup(); return; }
+    joinLiveClassFromMessage(pendingLiveCallId, pendingLiveBaseUrl, pendingLiveStudentToken);
+    closeIncomingCallPopup();
+}
+function showIncomingCallPopup(callId, baseUrl, token) {
+    pendingLiveCallId = callId; pendingLiveBaseUrl = baseUrl; pendingLiveStudentToken = token;
     document.getElementById('call-group-avatar').src = activeGroupAvatar;
     document.getElementById('call-group-name').innerText = activeGroupName;
     document.getElementById('incoming-call-popup').classList.remove('hidden');
 }
 function closeIncomingCallPopup() {
     document.getElementById('incoming-call-popup').classList.add('hidden');
-    pendingLiveClassUrl = null;
-    pendingLiveCallId = null;
+    pendingLiveCallId = null; pendingLiveBaseUrl = null; pendingLiveStudentToken = null;
 }
 
-/* Student click on popup — verify call is still active */
-async function joinLiveClass() {
-    if (!pendingLiveClassUrl || !pendingLiveCallId) return;
-
-    const { data } = await supabaseClient
-        .from('live_calls')
-        .select('active, last_heartbeat, ended_at')
-        .eq('id', pendingLiveCallId)
-        .maybeSingle();
-
-    if (!data || !data.active || data.ended_at) {
-        closeIncomingCallPopup();
-        return alert("⛔ This class has already ended.\n\nAsk your teacher to start a new session.");
+function openMeetingRoom(token, username) {
+    const panel = document.getElementById('meeting-room-panel');
+    const iframe = document.getElementById('meeting-room-iframe');
+    const status = document.getElementById('meeting-room-status');
+    if (!panel || !iframe) { console.warn('Meeting room panel missing'); return; }
+    iframe.src = `${GALENE_BASE_URL}/group/${GALENE_GROUP}/?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`;
+    if (status) status.innerText = `(${username})`;
+    panel.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+function closeMeetingRoom() {
+    const panel = document.getElementById('meeting-room-panel');
+    const iframe = document.getElementById('meeting-room-iframe');
+    if (!panel) return;
+    panel.classList.add('hidden');
+    panel.classList.remove('fullscreen-mode');
+    if (iframe) iframe.src = 'about:blank';
+    document.body.style.overflow = '';
+    const fsBtn = document.getElementById('meeting-fs-btn');
+    if (fsBtn) fsBtn.innerText = '⛶ Full';
+}
+function toggleMeetingFullscreen() {
+    const panel = document.getElementById('meeting-room-panel');
+    const fsBtn = document.getElementById('meeting-fs-btn');
+    if (!panel) return;
+    panel.classList.toggle('fullscreen-mode');
+    if (panel.classList.contains('fullscreen-mode')) {
+        if (panel.requestFullscreen) panel.requestFullscreen().catch(() => {});
+        if (fsBtn) fsBtn.innerText = '⤢ Exit';
+    } else {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        if (fsBtn) fsBtn.innerText = '⛶ Full';
     }
-
-    const lastBeat = new Date(data.last_heartbeat).getTime();
-    if (Date.now() - lastBeat > 90000) {
-        closeIncomingCallPopup();
-        return alert("⛔ This class appears to be inactive.\n\nPlease wait for the teacher to restart.");
-    }
-
-    window.open(pendingLiveClassUrl, '_self');
-    closeIncomingCallPopup();
 }
 
-/* Student click on old chat message button */
-async function joinLiveClassFromMessage(callId, callUrl) {
-    const { data } = await supabaseClient
-        .from('live_calls')
-        .select('active, last_heartbeat, ended_at')
-        .eq('id', callId)
-        .maybeSingle();
-
-    if (!data || !data.active || data.ended_at) {
-        return alert("⛔ This class has already ended.\n\nAsk your teacher to start a new session.");
-    }
-    const lastBeat = new Date(data.last_heartbeat).getTime();
-    if (Date.now() - lastBeat > 90000) {
-        return alert("⛔ This class appears to be inactive.\n\nPlease wait for the teacher to restart.");
-    }
-    window.open(callUrl, '_self');
-}
-
-/* Teacher starts a live class */
-async function startClassCall() {
-    if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') {
-        return alert("Only Teachers and Admins can start the live class!");
-    }
-    if (!activeGroupId) return;
-
-    if (currentLiveCallId) {
-        return alert("A live class is already running. Click 'End Class' on the banner first.");
-    }
-
-    // Random room name — makes URL guessing impossible
-    const randomSuffix = Math.random().toString(36).slice(2, 10);
-    const roomName = `mc-${activeGroupUniqueId}-${randomSuffix}`;
-    const mirotalkUrl = `https://2a14-6781-000a-0000-0007.taild42689.ts.net/join/${roomName}`;
-
-    // Deactivate any stale active calls for this group
-    await supabaseClient
-        .from('live_calls')
-        .update({ active: false, ended_at: new Date().toISOString() })
-        .eq('group_id', activeGroupId)
-        .eq('active', true);
-
-    // Create new live_call record
-    const { data: callData, error: callErr } = await supabaseClient
-        .from('live_calls')
-        .insert([{
-            group_id: activeGroupId,
-            teacher_id: currentUser.id,
-            room_name: roomName,
-            active: true
-        }])
-        .select()
-        .single();
-
-    if (callErr) return alert("Failed to start class: " + callErr.message);
-
-    currentLiveCallId = callData.id;
-    currentLiveRoomName = roomName;
-
-    // Open Mirotalk in NEW TAB (app tab stays open for heartbeat)
-    window.open(mirotalkUrl, '_blank');
-
-    // Prompt teacher: join first, then notify students
-    showLiveClassSetupPrompt();
-}
-
-function showLiveClassSetupPrompt() {
-    document.getElementById('live-setup-modal')?.remove();
-
-    const modal = document.createElement('div');
-    modal.id = 'live-setup-modal';
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    modal.innerHTML = `
-        <div style="background:var(--card-bg);color:var(--text-color);border-radius:16px;padding:30px 26px;max-width:430px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4);">
-            <div style="width:70px;height:70px;border-radius:50%;background:linear-gradient(135deg,#25D366,#128C7E);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 20px rgba(37,211,102,.4);">
-                <span style="font-size:34px;">🎥</span>
-            </div>
-            <h3 style="margin:0 0 8px;font-size:20px;">Live Class Ready</h3>
-            <p style="font-size:14px;opacity:.85;margin:0 0 6px;line-height:1.5;">Mirotalk has opened in a new tab.</p>
-            <p style="font-size:13px;opacity:.65;margin:0 0 22px;line-height:1.5;">Join the room first, then click the button below to notify students. This prevents students from taking your admin seat.</p>
-            <div style="display:flex;gap:10px;">
-                <button onclick="cancelLiveClassSetup()" style="flex:1;padding:13px;border-radius:12px;border:1px solid #ccc;background:transparent;color:var(--text-color);font-weight:600;cursor:pointer;font-size:14px;">Cancel</button>
-                <button onclick="notifyStudentsOfLiveClass()" style="flex:1.8;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:white;font-weight:700;cursor:pointer;font-size:14px;box-shadow:0 6px 16px rgba(37,211,102,.4);">🔔 Notify Students</button>
-            </div>
-        </div>`;
-    document.body.appendChild(modal);
-}
-
-async function notifyStudentsOfLiveClass() {
-    document.getElementById('live-setup-modal')?.remove();
-    if (!currentLiveCallId || !activeGroupId || !currentLiveRoomName) return;
-
-    const mirotalkUrl = `https://2a14-6781-000a-0000-0007.taild42689.ts.net/join/${currentLiveRoomName}`;
-    const callNotice = `[LIVE_CLASS_STARTED]${currentLiveCallId}|${mirotalkUrl}`;
-
-    const { error } = await supabaseClient.from('messages').insert([{
-        group_id: activeGroupId,
-        sender_id: currentUser.id,
-        message_text: callNotice
-    }]);
-    if (error) return alert("Failed to notify students: " + error.message);
-
-    startLiveHeartbeat();
-    showLiveBanner();
-    lastMessagesHash = '';
-    await loadMessages();
-}
-
-async function cancelLiveClassSetup() {
-    document.getElementById('live-setup-modal')?.remove();
-    if (currentLiveCallId) {
-        await supabaseClient
-            .from('live_calls')
-            .update({ active: false, ended_at: new Date().toISOString() })
-            .eq('id', currentLiveCallId);
-    }
-    currentLiveCallId = null;
-    currentLiveRoomName = null;
-}
-
-/* Heartbeat — keeps call alive while teacher's app tab is open */
 function startLiveHeartbeat() {
     stopLiveHeartbeat();
     const beat = async () => {
         if (!currentLiveCallId) return;
-        const { data } = await supabaseClient
-            .from('live_calls')
-            .select('active')
-            .eq('id', currentLiveCallId)
-            .maybeSingle();
-        if (!data || !data.active) {
-            stopLiveHeartbeat();
-            hideLiveBanner();
-            currentLiveCallId = null;
-            currentLiveRoomName = null;
-            return;
-        }
-        await supabaseClient
-            .from('live_calls')
-            .update({ last_heartbeat: new Date().toISOString() })
-            .eq('id', currentLiveCallId);
+        const { data } = await supabaseClient.from('live_calls').select('active').eq('id', currentLiveCallId).maybeSingle();
+        if (!data || !data.active) { stopLiveHeartbeat(); hideLiveBanner(); currentLiveCallId = null; currentGaleneTeacherToken = null; currentGaleneStudentToken = null; return; }
+        await supabaseClient.from('live_calls').update({ last_heartbeat: new Date().toISOString() }).eq('id', currentLiveCallId);
     };
-    beat();
-    liveHeartbeatTimer = setInterval(beat, 15000);
+    beat(); liveHeartbeatTimer = setInterval(beat, 15000);
 }
-function stopLiveHeartbeat() {
-    if (liveHeartbeatTimer) { clearInterval(liveHeartbeatTimer); liveHeartbeatTimer = null; }
-}
+function stopLiveHeartbeat() { if (liveHeartbeatTimer) { clearInterval(liveHeartbeatTimer); liveHeartbeatTimer = null; } }
 
-/* Floating banner for teacher */
 function showLiveBanner() {
     document.getElementById('live-class-banner')?.remove();
-
     if (!document.getElementById('live-banner-anim')) {
         const s = document.createElement('style');
         s.id = 'live-banner-anim';
         s.textContent = '@keyframes rec-pulse{0%,100%{opacity:1}50%{opacity:.3}}';
         document.head.appendChild(s);
     }
-
     const banner = document.createElement('div');
     banner.id = 'live-class-banner';
-    banner.style.cssText = 'position:fixed;bottom:20px;right:20px;background:linear-gradient(135deg,#d32f2f,#e74c3c);color:white;padding:14px 20px;border-radius:14px;z-index:9998;box-shadow:0 10px 30px rgba(211,47,47,.5);display:flex;align-items:center;gap:14px;font-weight:600;font-size:14px;';
-    banner.innerHTML = `
-        <span style="display:flex;align-items:center;gap:8px;">
-            <span style="width:12px;height:12px;border-radius:50%;background:white;animation:rec-pulse 1s infinite;"></span>
-            Live Class Running
-        </span>
-        <button onclick="endLiveClass()" style="background:white;color:#d32f2f;border:none;padding:8px 16px;border-radius:20px;font-weight:700;cursor:pointer;font-size:13px;">End Class</button>`;
+    banner.style.cssText = 'position:fixed;bottom:20px;right:20px;background:linear-gradient(135deg,#d32f2f,#e74c3c);color:white;padding:12px 16px;border-radius:14px;z-index:9998;box-shadow:0 10px 30px rgba(211,47,47,.5);display:flex;align-items:center;gap:10px;font-weight:600;font-size:13px;flex-wrap:wrap;max-width:calc(100vw - 40px);';
+    banner.innerHTML = `<span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><span style="width:10px;height:10px;border-radius:50%;background:white;animation:rec-pulse 1s infinite;"></span>Live Class</span><button onclick="openMeetingRoom(currentGaleneTeacherToken || sessionStorage.getItem('galene_teacher_token'), currentUser.user_metadata.name || 'Teacher')" style="background:white;color:#128C7E;border:none;padding:6px 12px;border-radius:16px;font-weight:700;cursor:pointer;font-size:12px;">Open</button><button onclick="endLiveClass()" style="background:white;color:#d32f2f;border:none;padding:6px 12px;border-radius:16px;font-weight:700;cursor:pointer;font-size:12px;">End</button>`;
     document.body.appendChild(banner);
 }
-function hideLiveBanner() {
-    document.getElementById('live-class-banner')?.remove();
-}
+function hideLiveBanner() { document.getElementById('live-class-banner')?.remove(); }
 
-/* Teacher ends class explicitly */
 async function endLiveClass() {
     if (!currentLiveCallId) return;
     if (!confirm("End the live class for everyone?")) return;
-
     const callId = currentLiveCallId;
     const groupId = activeGroupId;
+    const teacherToken = currentGaleneTeacherToken || sessionStorage.getItem('galene_teacher_token');
+    const studentToken = currentGaleneStudentToken || sessionStorage.getItem('galene_student_token');
 
-    await supabaseClient
-        .from('live_calls')
-        .update({ active: false, ended_at: new Date().toISOString() })
-        .eq('id', callId);
+    if (teacherToken) await revokeGaleneToken(teacherToken);
+    if (studentToken) await revokeGaleneToken(studentToken);
+    await supabaseClient.from('live_calls').update({ active: false, ended_at: new Date().toISOString() }).eq('id', callId);
+    await supabaseClient.from('messages').insert([{ group_id: groupId, sender_id: currentUser.id, message_text: `[LIVE_CLASS_ENDED]${callId}` }]);
 
-    stopLiveHeartbeat();
-    hideLiveBanner();
-    currentLiveCallId = null;
-    currentLiveRoomName = null;
+    stopLiveHeartbeat(); hideLiveBanner(); closeMeetingRoom();
+    currentLiveCallId = null; currentGaleneTeacherToken = null; currentGaleneStudentToken = null;
+    sessionStorage.removeItem('galene_teacher_token');
+    sessionStorage.removeItem('galene_call_id');
+    sessionStorage.removeItem('galene_student_token');
 
-    // Post END message so old join buttons become expired
-    await supabaseClient.from('messages').insert([{
-        group_id: groupId,
-        sender_id: currentUser.id,
-        message_text: `[LIVE_CLASS_ENDED]${callId}`
-    }]);
-
-    lastMessagesHash = '';
-    await loadMessages();
-    alert("✅ Live class ended. Students can no longer join.");
+    lastMessagesHash = ''; await loadMessages();
+    alert("✅ Live class ended. All student tokens revoked.");
 }
 
 /* ============================================================
@@ -1402,16 +1086,10 @@ function listenToRealtimeData() {
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
             if (!activeGroupId) return;
-            if (payload.new && String(payload.new.group_id) === String(activeGroupId)) {
-                lastMessagesHash = '';
-                loadMessages();
-            }
+            if (payload.new && String(payload.new.group_id) === String(activeGroupId)) { lastMessagesHash = ''; loadMessages(); }
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_calls' }, (payload) => {
-            // If a call was just ended and it matches our pending popup, close it
-            if (payload.new && !payload.new.active && pendingLiveCallId === payload.new.id) {
-                closeIncomingCallPopup();
-            }
+            if (payload.new && !payload.new.active && pendingLiveCallId === payload.new.id) closeIncomingCallPopup();
         })
         .subscribe();
     loadNotifications();
@@ -1437,22 +1115,20 @@ async function showMemberProfile(member) {
 async function updateStarUI() {
     if (!currentPopupMemberId || !currentUser) return;
     const starBtn = document.getElementById('star-btn'), starCountSpan = document.getElementById('star-count');
-    const { count, error: countErr } = await supabaseClient.from('user_stars').select('*', { count: 'exact', head: true }).eq('receiver_user_id', currentPopupMemberId);
-    if (!countErr) starCountSpan.innerText = count || 0;
+    const { count } = await supabaseClient.from('user_stars').select('*', { count: 'exact', head: true }).eq('receiver_user_id', currentPopupMemberId);
+    starCountSpan.innerText = count || 0;
     if (currentUser.id === currentPopupMemberId) { starBtn.style.opacity = '0.3'; starBtn.disabled = true; return; }
-    const { data, error } = await supabaseClient.from('user_stars').select('id').eq('giver_user_id', currentUser.id).eq('receiver_user_id', currentPopupMemberId).maybeSingle();
-    if (!error && data) { starBtn.innerHTML = '★'; starBtn.style.color = '#e4b400'; }
+    const { data } = await supabaseClient.from('user_stars').select('id').eq('giver_user_id', currentUser.id).eq('receiver_user_id', currentPopupMemberId).maybeSingle();
+    if (data) { starBtn.innerHTML = '★'; starBtn.style.color = '#e4b400'; }
     else { starBtn.innerHTML = '☆'; starBtn.style.color = '#aaa'; }
     starBtn.style.opacity = '1'; starBtn.disabled = false;
 }
 async function toggleStar() {
     if (!currentPopupMemberId || !currentUser || currentUser.id === currentPopupMemberId) return;
-    const { data, error } = await supabaseClient.from('user_stars').select('id').eq('giver_user_id', currentUser.id).eq('receiver_user_id', currentPopupMemberId).maybeSingle();
-    if (error) return alert("Something went wrong.");
+    const { data } = await supabaseClient.from('user_stars').select('id').eq('giver_user_id', currentUser.id).eq('receiver_user_id', currentPopupMemberId).maybeSingle();
     if (data) await supabaseClient.from('user_stars').delete().eq('id', data.id);
     else await supabaseClient.from('user_stars').insert([{ giver_user_id: currentUser.id, receiver_user_id: currentPopupMemberId }]);
-    await updateStarUI();
-    await updateMyStarCount();
+    await updateStarUI(); await updateMyStarCount();
 }
 async function updateMyStarCount() {
     if (!currentUser) return;
@@ -1462,7 +1138,7 @@ async function updateMyStarCount() {
 }
 
 /* ============================================================
-   SHOW APP / SHOW AUTH
+   SHOW APP / AUTH
    ============================================================ */
 function showApp() {
     document.getElementById('auth-container').classList.add('hidden');
@@ -1475,8 +1151,7 @@ function showAuth() {
     document.getElementById('auth-container').classList.remove('hidden');
     document.getElementById('app-container').classList.add('hidden');
     if (chatPollingInterval) { clearInterval(chatPollingInterval); chatPollingInterval = null; }
-    stopLiveHeartbeat();
-    hideLiveBanner();
+    stopLiveHeartbeat(); hideLiveBanner();
 }
 
 /* ============================================================
@@ -1484,8 +1159,7 @@ function showAuth() {
    ============================================================ */
 function togglePlusMenu(e) {
     e?.stopPropagation();
-    const menu = document.getElementById('plus-menu');
-    const btn = document.getElementById('plus-btn');
+    const menu = document.getElementById('plus-menu'), btn = document.getElementById('plus-btn');
     const isHidden = menu.classList.contains('hidden');
     menu.classList.toggle('hidden', !isHidden);
     btn.classList.toggle('open', isHidden);
@@ -1543,25 +1217,16 @@ function closeImagePreview() {
 }
 
 /* ============================================================
-   🖌️ ADVANCED WHITEBOARD — Infinite canvas with panning
+   WHITEBOARD
    ============================================================ */
 let wbCanvas, wbCtx;
-let wbObjects = [];
-let wbUndoStack = [];
-let wbRedoStack = [];
-let wbSelected = null;
-let wbTool = 'pen';
-let wbColor = '#000000';
-let wbFill = '#ffffff';
-let wbSize = 3;
-let wbTempPath = null;
-let wbTempShape = null;
+let wbObjects = [], wbUndoStack = [], wbRedoStack = [];
+let wbSelected = null, wbTool = 'pen';
+let wbColor = '#000000', wbFill = '#ffffff', wbSize = 3;
+let wbTempPath = null, wbTempShape = null;
 let wbBoardName = 'Untitled Board';
-let wbIsInited = false;
-let wbImageCache = {};
+let wbIsInited = false, wbImageCache = {};
 let wbPointer = { active: false, mode: null, startX: 0, startY: 0, origBounds: null, origObj: null, handle: null, beforeState: null };
-
-// infinite canvas state
 let wbOffset = { x: 0, y: 0 };
 let wbPanning = false;
 let wbPanStart = { x: 0, y: 0, ox: 0, oy: 0 };
@@ -1579,8 +1244,7 @@ function createWhiteboard() {
     wbBoardName = name;
     wbObjects = []; wbUndoStack = []; wbRedoStack = []; wbSelected = null;
     wbOffset = { x: 0, y: 0 };
-    closeWbNamePrompt();
-    openWhiteboard();
+    closeWbNamePrompt(); openWhiteboard();
 }
 function openWhiteboard() {
     document.getElementById('whiteboard-modal').classList.remove('hidden');
@@ -1592,8 +1256,7 @@ function closeWhiteboard() {
     document.getElementById('whiteboard-modal').classList.add('hidden');
     document.getElementById('whiteboard-window').classList.remove('wb-fullscreen');
     document.getElementById('wb-fs-btn').innerText = '⛶';
-    wbSelected = null; wbTempPath = null; wbTempShape = null;
-    wbPanning = false;
+    wbSelected = null; wbTempPath = null; wbTempShape = null; wbPanning = false;
 }
 function initWbCanvas() {
     wbCanvas = document.getElementById('wb-canvas');
@@ -1615,8 +1278,7 @@ function wbResize(initial) {
     const wrap = wbCanvas.parentElement;
     const newW = wrap.clientWidth, newH = wrap.clientHeight;
     if (wbCanvas.width === newW && wbCanvas.height === newH && !initial) return;
-    wbCanvas.width = newW;
-    wbCanvas.height = newH;
+    wbCanvas.width = newW; wbCanvas.height = newH;
     renderWhiteboard();
 }
 function wbToggleFullscreen() {
@@ -1684,20 +1346,17 @@ function drawArrowHead(x1, y1, x2, y2, color, size) {
     wbCtx.moveTo(x2, y2);
     wbCtx.lineTo(x2 - len * Math.cos(angle - Math.PI / 6), y2 - len * Math.sin(angle - Math.PI / 6));
     wbCtx.lineTo(x2 - len * Math.cos(angle + Math.PI / 6), y2 - len * Math.sin(angle + Math.PI / 6));
-    wbCtx.closePath();
-    wbCtx.fill();
+    wbCtx.closePath(); wbCtx.fill();
 }
 function drawObject(obj) {
     if (obj.type === 'path') {
         wbCtx.save();
         wbCtx.globalAlpha = obj.tool === 'highlighter' ? 0.35 : 1;
-        wbCtx.strokeStyle = obj.color;
-        wbCtx.lineWidth = obj.size;
+        wbCtx.strokeStyle = obj.color; wbCtx.lineWidth = obj.size;
         wbCtx.lineCap = 'round'; wbCtx.lineJoin = 'round';
         wbCtx.beginPath();
         if (obj.points.length) { wbCtx.moveTo(obj.points[0].x, obj.points[0].y); for (let i = 1; i < obj.points.length; i++) wbCtx.lineTo(obj.points[i].x, obj.points[i].y); }
-        wbCtx.stroke();
-        wbCtx.restore();
+        wbCtx.stroke(); wbCtx.restore();
     } else if (obj.type === 'line' || obj.type === 'arrow') {
         wbCtx.strokeStyle = obj.color; wbCtx.lineWidth = obj.size; wbCtx.lineCap = 'round';
         wbCtx.beginPath(); wbCtx.moveTo(obj.x1, obj.y1); wbCtx.lineTo(obj.x2, obj.y2); wbCtx.stroke();
@@ -1748,8 +1407,7 @@ function drawObject(obj) {
         if (!img) {
             img = new Image(); img.crossOrigin = 'anonymous';
             img.onload = () => { wbImageCache[obj.url] = img; renderWhiteboard(); };
-            img.src = obj.url;
-            wbImageCache[obj.url] = img;
+            img.src = obj.url; wbImageCache[obj.url] = img;
         }
         if (img.complete && img.naturalWidth > 0) wbCtx.drawImage(img, obj.x, obj.y, obj.w, obj.h);
     }
@@ -1787,22 +1445,19 @@ function wbUndo() {
     if (!wbUndoStack.length) return;
     wbRedoStack.push(wbSnapshot());
     wbObjects = JSON.parse(wbUndoStack.pop());
-    wbSelected = null;
-    renderWhiteboard();
+    wbSelected = null; renderWhiteboard();
 }
 function wbRedo() {
     if (!wbRedoStack.length) return;
     wbUndoStack.push(wbSnapshot());
     wbObjects = JSON.parse(wbRedoStack.pop());
-    wbSelected = null;
-    renderWhiteboard();
+    wbSelected = null; renderWhiteboard();
 }
 function wbDeleteSelected() {
     if (!wbSelected) return;
     wbPushHistory();
     wbObjects = wbObjects.filter(o => o.id !== wbSelected.id);
-    wbSelected = null;
-    renderWhiteboard();
+    wbSelected = null; renderWhiteboard();
 }
 function wbClear() {
     if (!confirm("Clear the entire board?")) return;
@@ -1821,8 +1476,7 @@ function applyResize(origBounds, origObj, handle, newX, newY) {
     else if (handle === 'ne') { ny = newY; nw = newX - origBounds.x; nh = origBounds.y + origBounds.h - newY; }
     else if (handle === 'sw') { nx = newX; nw = origBounds.x + origBounds.w - newX; nh = newY - origBounds.y; }
     else if (handle === 'se') { nw = newX - origBounds.x; nh = newY - origBounds.y; }
-    if (nw < 12) nw = 12;
-    if (nh < 12) nh = 12;
+    if (nw < 12) nw = 12; if (nh < 12) nh = 12;
     const sx = nw / origBounds.w, sy = nh / origBounds.h;
     const sp = p => ({ x: nx + (p.x - origBounds.x) * sx, y: ny + (p.y - origBounds.y) * sy });
     const cur = wbSelected;
@@ -1846,10 +1500,8 @@ function wbPointerDown(e) {
     if (e.button === 1 || wbTool === 'pan' || wbSpaceHeld) {
         e.preventDefault();
         wbPanning = true;
-        wbPanStart.x = e.clientX;
-        wbPanStart.y = e.clientY;
-        wbPanStart.ox = wbOffset.x;
-        wbPanStart.oy = wbOffset.y;
+        wbPanStart.x = e.clientX; wbPanStart.y = e.clientY;
+        wbPanStart.ox = wbOffset.x; wbPanStart.oy = wbOffset.y;
         try { wbCanvas.setPointerCapture(e.pointerId); } catch (_) {}
         if (wbCanvas) wbCanvas.style.cursor = 'grabbing';
         return;
@@ -1863,43 +1515,36 @@ function wbPointerDown(e) {
         if (h) { wbPointer.mode = 'resize'; wbPointer.handle = h; wbPointer.origBounds = getObjectBounds(wbSelected); wbPointer.origObj = JSON.parse(JSON.stringify(wbSelected)); return; }
         let hit = null;
         for (let i = wbObjects.length - 1; i >= 0; i--) if (hitTest(wbObjects[i], p.x, p.y)) { hit = wbObjects[i]; break; }
-        wbSelected = hit;
-        wbPointer.mode = hit ? 'move' : null;
-        renderWhiteboard();
-        return;
+        wbSelected = hit; wbPointer.mode = hit ? 'move' : null;
+        renderWhiteboard(); return;
     }
     if (wbTool === 'eraser') { wbPointer.mode = 'erase'; eraseAt(p.x, p.y); return; }
     if (wbTool === 'pen' || wbTool === 'highlighter') {
         wbPointer.mode = 'draw';
         wbTempPath = { id: 'o_' + Date.now() + '_' + Math.random().toString(36).slice(2), type: 'path', tool: wbTool, points: [p], color: wbColor, size: wbTool === 'highlighter' ? wbSize * 5 : wbSize };
-        renderWhiteboard();
-        return;
+        renderWhiteboard(); return;
     }
     if (['line','arrow','rect','circle','triangle'].includes(wbTool)) {
         wbPointer.mode = 'shape';
         wbTempShape = { id: 'o_' + Date.now() + '_' + Math.random().toString(36).slice(2), type: wbTool, x1: p.x, y1: p.y, x2: p.x, y2: p.y, color: wbColor, fill: (wbTool === 'line' || wbTool === 'arrow') ? 'none' : wbFill, size: wbSize };
-        renderWhiteboard();
-        return;
+        renderWhiteboard(); return;
     }
     if (wbTool === 'text') {
         const text = prompt("Enter text:");
         if (text) { wbPushHistory(); wbObjects.push({ id: 'o_' + Date.now(), type: 'text', x: p.x, y: p.y, text, color: wbColor, fontSize: 14 + wbSize * 2 }); renderWhiteboard(); }
-        wbPointer.active = false;
-        return;
+        wbPointer.active = false; return;
     }
     if (wbTool === 'sticky') {
         const text = prompt("Sticky note text:");
         if (text) { wbPushHistory(); wbObjects.push({ id: 'o_' + Date.now(), type: 'sticky', x: p.x, y: p.y, w: 160, h: 120, text, fill: (wbFill === '#ffffff' ? '#fff9c4' : wbFill), color: '#f9a825', fontSize: 14 }); renderWhiteboard(); }
-        wbPointer.active = false;
-        return;
+        wbPointer.active = false; return;
     }
 }
 function wbPointerMove(e) {
     if (wbPanning) {
         wbOffset.x = wbPanStart.ox + (e.clientX - wbPanStart.x);
         wbOffset.y = wbPanStart.oy + (e.clientY - wbPanStart.y);
-        renderWhiteboard();
-        return;
+        renderWhiteboard(); return;
     }
     if (!wbPointer.active) return;
     const p = getWbPos(e);
@@ -1922,7 +1567,6 @@ function wbPointerUp(e) {
     }
     if (!wbPointer.active) return;
     wbPointer.active = false;
-    const p = getWbPos(e);
     if (wbPointer.mode === 'draw' && wbTempPath) {
         if (wbTempPath.points.length > 1) wbObjects.push(wbTempPath);
         wbTempPath = null;
@@ -1964,12 +1608,7 @@ function wbInsertImage() {
             const ratio = Math.min(maxW / w, maxH / h, 1);
             w *= ratio; h *= ratio;
             wbPushHistory();
-            wbObjects.push({
-                id: 'o_' + Date.now(), type: 'image',
-                x: (wbCanvas.width - w) / 2 - wbOffset.x,
-                y: (wbCanvas.height - h) / 2 - wbOffset.y,
-                w, h, url
-            });
+            wbObjects.push({ id: 'o_' + Date.now(), type: 'image', x: (wbCanvas.width - w) / 2 - wbOffset.x, y: (wbCanvas.height - h) / 2 - wbOffset.y, w, h, url });
             wbImageCache[url] = img;
             renderWhiteboard();
         };
@@ -1982,15 +1621,12 @@ function _wbExportCanvas() {
     tmp.width = wbCanvas.width; tmp.height = wbCanvas.height;
     const tctx = tmp.getContext('2d');
     tctx.fillStyle = '#fff'; tctx.fillRect(0, 0, tmp.width, tmp.height);
-    const prevSelected = wbSelected;
-    wbSelected = null;
-    const realCtx = wbCtx;
-    wbCtx = tctx;
+    const prevSelected = wbSelected; wbSelected = null;
+    const realCtx = wbCtx; wbCtx = tctx;
     wbCtx.setTransform(1, 0, 0, 1, wbOffset.x, wbOffset.y);
     wbObjects.forEach(drawObject);
     wbCtx.setTransform(1, 0, 0, 1, 0, 0);
-    wbCtx = realCtx;
-    wbSelected = prevSelected;
+    wbCtx = realCtx; wbSelected = prevSelected;
     return tmp;
 }
 async function wbSavePdf() {
@@ -2024,8 +1660,7 @@ async function wbSendToGroup() {
     const payload = JSON.stringify({ name: wbBoardName, imgUrl, jsonUrl });
     const { error } = await supabaseClient.from('messages').insert([{ message_text: '[WHITEBOARD]' + payload, sender_id: currentUser.id, group_id: activeGroupId }]);
     if (error) return alert("Send failed: " + error.message);
-    lastMessagesHash = '';
-    await loadMessages();
+    lastMessagesHash = ''; await loadMessages();
     document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
     alert("✅ Whiteboard sent to group!");
 }
