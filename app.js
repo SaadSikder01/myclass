@@ -1,5 +1,6 @@
 /* ============================================================
    MyClassroom - app.js  (Galene via Supabase Edge Function Proxy)
+   + FIXED: JWT authorization headers added
    ============================================================ */
 
 const SUPABASE_URL = "https://bytnxoltodeckrmwobgc.supabase.co";
@@ -880,7 +881,7 @@ async function createPoll() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   GALENE LIVE CLASS (via Supabase Proxy)
+   GALENE LIVE CLASS (via Supabase Proxy) — JWT FIX
    ═══════════════════════════════════════════════════════════ */
 
 /* ✅ Token create — Supabase Edge Function proxy-র মাধ্যমে */
@@ -892,7 +893,11 @@ async function createGaleneToken(permissions, username, expiresInMs) {
     try {
         const res = await fetch(GALENE_PROXY_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                'apikey': SUPABASE_ANON_KEY
+            },
             body: JSON.stringify({
                 path: `.groups/${GALENE_GROUP}/.tokens/`,
                 body: body,
@@ -911,13 +916,17 @@ async function createGaleneToken(permissions, username, expiresInMs) {
     }
 }
 
-/* ✅ Token revoke — proxy-র মাধ্যমে (যদি deployed proxy support করে) */
+/* ✅ Token revoke — proxy-র মাধ্যমে */
 async function revokeGaleneToken(token) {
     if (!token) return;
     try {
         await fetch(GALENE_PROXY_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                'apikey': SUPABASE_ANON_KEY
+            },
             body: JSON.stringify({
                 path: `.groups/${GALENE_GROUP}/.tokens/${token}`,
                 method: 'DELETE',
@@ -953,7 +962,7 @@ async function startClassCall() {
     const teacherToken = await createGaleneToken(['op'], teacherName, 2 * 60 * 60 * 1000);
     if (!teacherToken) {
         await supabaseClient.from('live_calls').update({ active: false, ended_at: new Date().toISOString() }).eq('id', callData.id);
-        return alert("❌ Failed to create teacher token.\n\nPossible causes:\n1. Supabase Edge Function not deployed\n2. Edge Function secret mismatch\n3. Galene server unreachable\n\nCheck browser console for details.");
+        return alert("❌ Failed to create teacher token.\n\nPossible causes:\n1. Supabase Edge Function not deployed\n2. Edge Function JWT verification blocking\n3. Galene server unreachable\n\nCheck browser console for details.");
     }
 
     currentLiveCallId = callData.id;
@@ -1078,11 +1087,9 @@ async function endLiveClass() {
     const teacherToken = currentGaleneTeacherToken || sessionStorage.getItem('galene_teacher_token');
     const studentToken = currentGaleneStudentToken || sessionStorage.getItem('galene_student_token');
 
-    // Best-effort token revoke (silently fails if proxy doesn't support DELETE)
     if (teacherToken) await revokeGaleneToken(teacherToken);
     if (studentToken) await revokeGaleneToken(studentToken);
 
-    // CRITICAL: deactivate in DB so new joins are blocked
     await supabaseClient.from('live_calls').update({ active: false, ended_at: new Date().toISOString() }).eq('id', callId);
     await supabaseClient.from('messages').insert([{ group_id: groupId, sender_id: currentUser.id, message_text: `[LIVE_CLASS_ENDED]${callId}` }]);
 
@@ -1093,7 +1100,7 @@ async function endLiveClass() {
     sessionStorage.removeItem('galene_student_token');
 
     lastMessagesHash = ''; await loadMessages();
-    alert("✅ Live class ended. Students can no longer join.\n\nThe room will auto-lock since the teacher has left.");
+    alert("✅ Live class ended. Students can no longer join.");
 }
 
 /* ============================================================
