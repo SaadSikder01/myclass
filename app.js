@@ -2000,3 +2000,26 @@ function viewLiveWhiteboardForStudent() {
     document.getElementById('whiteboard-modal').classList.remove('hidden');
     setTimeout(() => { initWbCanvas(); wbResize(true); renderWhiteboard(); }, 80);
 }
+
+
+
+
+
+/* ✅ Listen for actions from Galene iframe */
+window.addEventListener('message', (event) => {
+    if (!event.data || event.data.type !== 'galene-action') return;
+    const action = event.data.action;
+    if (action === 'whiteboard') {
+        handleWBButton();
+    } else if (action === 'endclass') {
+        endLiveClass();
+    } else if (action === 'leave') {
+        closeMeetingRoom();
+        currentLiveCallId = null;
+        currentGaleneTeacherToken = null;
+        currentGaleneStudentToken = null;
+        sessionStorage.removeItem('galene_teacher_token');
+        sessionStorage.removeItem('galene_call_id');
+        sessionStorage.removeItem('galene_student_token');
+    }
+});
