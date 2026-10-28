@@ -1,6 +1,5 @@
 /* ============================================================
-   MyClassroom - app.js  (Galene via Supabase Edge Function Proxy)
-   + FIXED: JWT authorization headers added
+   MyClassroom - app.js  (Galene + Live Whiteboard - Option A)
    ============================================================ */
 
 const SUPABASE_URL = "https://bytnxoltodeckrmwobgc.supabase.co";
@@ -40,6 +39,13 @@ let liveHeartbeatTimer = null;
 let pendingLiveCallId = null;
 let pendingLiveBaseUrl = null;
 let pendingLiveStudentToken = null;
+
+// ✅ Live Whiteboard state
+let liveWBChannel = null;
+let liveWBSessionId = null;
+let liveWBActive = false;
+let wbBroadcastTimer = null;
+let wbMode = 'normal'; // 'normal' | 'live-teacher' | 'live-student'
 
 /* ============================================================
    INIT
@@ -102,6 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const modal = document.getElementById('whiteboard-modal');
         if (!modal || modal.classList.contains('hidden')) return;
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (wbMode === 'live-student') return;
         const key = e.key.toLowerCase();
         if (e.ctrlKey || e.metaKey) {
             if (key === 'z') { e.preventDefault(); e.shiftKey ? wbRedo() : wbUndo(); }
@@ -744,7 +751,7 @@ async function loadMessages() {
 }
 
 /* ============================================================
-   MESSAGE ACTION MENU
+   MESSAGE ACTION MENU / DELETE / EDIT — unchanged
    ============================================================ */
 function openMsgActionMenu(event, messageId, senderId, isDeleted) {
     event.stopPropagation(); event.preventDefault();
@@ -881,10 +888,9 @@ async function createPoll() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   GALENE LIVE CLASS (via Supabase Proxy) — JWT FIX
+   GALENE LIVE CLASS (via Supabase Proxy) + LIVE WHITEBOARD
    ═══════════════════════════════════════════════════════════ */
 
-/* ✅ Token create — Supabase Edge Function proxy-র মাধ্যমে */
 async function createGaleneToken(permissions, username, expiresInMs) {
     const body = { permissions };
     if (username) body.username = username;
@@ -916,7 +922,6 @@ async function createGaleneToken(permissions, username, expiresInMs) {
     }
 }
 
-/* ✅ Token revoke — proxy-র মাধ্যমে */
 async function revokeGaleneToken(token) {
     if (!token) return;
     try {
@@ -938,7 +943,6 @@ async function revokeGaleneToken(token) {
     }
 }
 
-/* ✅ Teacher: start live class */
 async function startClassCall() {
     if (currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') {
         return alert("Only Teachers and Admins can start the live class!");
@@ -985,12 +989,17 @@ async function startClassCall() {
     lastMessagesHash = ''; await loadMessages();
 }
 
-/* ✅ Student: join from message */
+/* ✅ UPDATED: student join — open INSIDE meeting room iframe */
 async function joinLiveClassFromMessage(callId, baseUrl, token) {
     const { data } = await supabaseClient.from('live_calls').select('active, ended_at').eq('id', callId).maybeSingle();
     if (!data || !data.active || data.ended_at) return alert("⛔ This class has already ended.\n\nAsk your teacher to start a new session.");
+
+    currentLiveCallId = callId;
     const myName = currentUser.user_metadata.name || currentUser.email || 'Student';
-    window.open(`${baseUrl}?token=${encodeURIComponent(token)}&username=${encodeURIComponent(myName)}`, '_blank');
+    openMeetingRoom(token, myName);
+
+    // Subscribe to live whiteboard broadcasts
+    await subscribeToLiveWB(callId);
 }
 function joinLiveClass() {
     if (!pendingLiveCallId || !pendingLiveBaseUrl || !pendingLiveStudentToken) { closeIncomingCallPopup(); return; }
@@ -1008,17 +1017,35 @@ function closeIncomingCallPopup() {
     pendingLiveCallId = null; pendingLiveBaseUrl = null; pendingLiveStudentToken = null;
 }
 
-/* ✅ Meeting room iframe control */
+/* ✅ UPDATED: openMeetingRoom with role-based controls */
 function openMeetingRoom(token, username) {
     const panel = document.getElementById('meeting-room-panel');
     const iframe = document.getElementById('meeting-room-iframe');
     const status = document.getElementById('meeting-room-status');
     if (!panel || !iframe) { console.warn('Meeting room panel missing'); return; }
+
     iframe.src = `${GALENE_BASE_URL}/group/${GALENE_GROUP}/?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`;
     if (status) status.innerText = `(${username})`;
     panel.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+
+    const wbBtn = document.getElementById('meeting-wb-btn');
+    const endBtn = document.getElementById('meeting-end-btn');
+    const leaveBtn = document.getElementById('meeting-leave-btn');
+    const isTeacher = currentUserRoleInActiveGroup === 'teacher' || currentUserRoleInActiveGroup === 'admin';
+
+    if (isTeacher) {
+        if (wbBtn) { wbBtn.style.display = 'inline-flex'; wbBtn.innerText = '🖌️ Whiteboard'; }
+        if (endBtn) endBtn.style.display = 'inline-flex';
+        if (leaveBtn) leaveBtn.style.display = 'none';
+    } else {
+        if (wbBtn) wbBtn.style.display = liveWBActive ? 'inline-flex' : 'none';
+        if (endBtn) endBtn.style.display = 'none';
+        if (leaveBtn) leaveBtn.style.display = 'inline-flex';
+    }
 }
+
+/* ✅ UPDATED: closeMeetingRoom */
 function closeMeetingRoom() {
     const panel = document.getElementById('meeting-room-panel');
     const iframe = document.getElementById('meeting-room-iframe');
@@ -1029,7 +1056,18 @@ function closeMeetingRoom() {
     document.body.style.overflow = '';
     const fsBtn = document.getElementById('meeting-fs-btn');
     if (fsBtn) fsBtn.innerText = '⛶ Full';
+    if (wbMode === 'live-student') {
+        stopLiveWhiteboardForViewer();
+    }
 }
+
+/* ✅ NEW: leave meeting (student) */
+async function leaveMeetingRoom() {
+    if (!confirm("Leave the live class?")) return;
+    await closeMeetingRoom();
+    currentLiveCallId = null;
+}
+
 function toggleMeetingFullscreen() {
     const panel = document.getElementById('meeting-room-panel');
     const fsBtn = document.getElementById('meeting-fs-btn');
@@ -1044,7 +1082,6 @@ function toggleMeetingFullscreen() {
     }
 }
 
-/* ✅ Heartbeat */
 function startLiveHeartbeat() {
     stopLiveHeartbeat();
     const beat = async () => {
@@ -1061,7 +1098,6 @@ function startLiveHeartbeat() {
 }
 function stopLiveHeartbeat() { if (liveHeartbeatTimer) { clearInterval(liveHeartbeatTimer); liveHeartbeatTimer = null; } }
 
-/* ✅ Floating banner for teacher */
 function showLiveBanner() {
     document.getElementById('live-class-banner')?.remove();
     if (!document.getElementById('live-banner-anim')) {
@@ -1078,7 +1114,7 @@ function showLiveBanner() {
 }
 function hideLiveBanner() { document.getElementById('live-class-banner')?.remove(); }
 
-/* ✅ End class */
+/* ✅ UPDATED: endLiveClass with WB stop */
 async function endLiveClass() {
     if (!currentLiveCallId) return;
     if (!confirm("End the live class for everyone?")) return;
@@ -1086,6 +1122,8 @@ async function endLiveClass() {
     const groupId = activeGroupId;
     const teacherToken = currentGaleneTeacherToken || sessionStorage.getItem('galene_teacher_token');
     const studentToken = currentGaleneStudentToken || sessionStorage.getItem('galene_student_token');
+
+    if (liveWBActive) await stopLiveWhiteboard();
 
     if (teacherToken) await revokeGaleneToken(teacherToken);
     if (studentToken) await revokeGaleneToken(studentToken);
@@ -1269,7 +1307,7 @@ function closeImagePreview() {
 }
 
 /* ============================================================
-   WHITEBOARD
+   WHITEBOARD — with live broadcast hooks
    ============================================================ */
 let wbCanvas, wbCtx;
 let wbObjects = [], wbUndoStack = [], wbRedoStack = [];
@@ -1340,6 +1378,7 @@ function wbToggleFullscreen() {
     setTimeout(() => wbResize(), 320);
 }
 function wbSetTool(tool) {
+    if (wbMode === 'live-student') return;
     wbTool = tool;
     ['select','pan','pen','highlighter','eraser','line','arrow','rect','circle','triangle','text','sticky'].forEach(t => {
         const btn = document.getElementById('wb-tool-' + t);
@@ -1484,7 +1523,7 @@ function renderWhiteboard() {
     wbObjects.forEach(drawObject);
     if (wbTempPath) drawObject(wbTempPath);
     if (wbTempShape) drawObject(wbTempShape);
-    if (wbSelected && wbTool === 'select') drawSelection(wbSelected);
+    if (wbSelected && wbTool === 'select' && wbMode !== 'live-student') drawSelection(wbSelected);
     wbCtx.setTransform(1, 0, 0, 1, 0, 0);
 }
 function wbSnapshot() { return JSON.stringify(wbObjects); }
@@ -1492,29 +1531,38 @@ function wbPushHistory() {
     wbUndoStack.push(wbSnapshot());
     if (wbUndoStack.length > 60) wbUndoStack.shift();
     wbRedoStack = [];
+    if (wbMode === 'live-teacher') scheduleBroadcastWB();
 }
 function wbUndo() {
+    if (wbMode === 'live-student') return;
     if (!wbUndoStack.length) return;
     wbRedoStack.push(wbSnapshot());
     wbObjects = JSON.parse(wbUndoStack.pop());
     wbSelected = null; renderWhiteboard();
+    if (wbMode === 'live-teacher') scheduleBroadcastWB();
 }
 function wbRedo() {
+    if (wbMode === 'live-student') return;
     if (!wbRedoStack.length) return;
     wbUndoStack.push(wbSnapshot());
     wbObjects = JSON.parse(wbRedoStack.pop());
     wbSelected = null; renderWhiteboard();
+    if (wbMode === 'live-teacher') scheduleBroadcastWB();
 }
 function wbDeleteSelected() {
+    if (wbMode === 'live-student') return;
     if (!wbSelected) return;
     wbPushHistory();
     wbObjects = wbObjects.filter(o => o.id !== wbSelected.id);
     wbSelected = null; renderWhiteboard();
+    if (wbMode === 'live-teacher') scheduleBroadcastWB();
 }
 function wbClear() {
+    if (wbMode === 'live-student') return;
     if (!confirm("Clear the entire board?")) return;
     wbPushHistory();
     wbObjects = []; wbSelected = null; renderWhiteboard();
+    if (wbMode === 'live-teacher') scheduleBroadcastWB();
 }
 function moveObject(obj, dx, dy) {
     if (obj.type === 'path') obj.points.forEach(p => { p.x += dx; p.y += dy; });
@@ -1549,6 +1597,7 @@ function getWbPos(e) {
     };
 }
 function wbPointerDown(e) {
+    if (wbMode === 'live-student') return;
     if (e.button === 1 || wbTool === 'pan' || wbSpaceHeld) {
         e.preventDefault();
         wbPanning = true;
@@ -1593,6 +1642,7 @@ function wbPointerDown(e) {
     }
 }
 function wbPointerMove(e) {
+    if (wbMode === 'live-student') return;
     if (wbPanning) {
         wbOffset.x = wbPanStart.ox + (e.clientX - wbPanStart.x);
         wbOffset.y = wbPanStart.oy + (e.clientY - wbPanStart.y);
@@ -1607,6 +1657,7 @@ function wbPointerMove(e) {
     if (wbPointer.mode === 'erase') { eraseAt(p.x, p.y); return; }
 }
 function wbPointerUp(e) {
+    if (wbMode === 'live-student') return;
     if (wbPanning) {
         wbPanning = false;
         if (wbCanvas) {
@@ -1638,6 +1689,7 @@ function wbPointerUp(e) {
         renderWhiteboard();
     }
     wbPointer.mode = null; wbPointer.origBounds = null; wbPointer.origObj = null; wbPointer.handle = null; wbPointer.beforeState = null;
+    if (wbMode === 'live-teacher') scheduleBroadcastWB();
 }
 function eraseAt(x, y) {
     const before = wbObjects.length;
@@ -1645,6 +1697,7 @@ function eraseAt(x, y) {
     if (wbObjects.length !== before) { wbSelected = null; renderWhiteboard(); }
 }
 function wbInsertImage() {
+    if (wbMode === 'live-student') return;
     const input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*';
     input.onchange = async () => {
@@ -1663,6 +1716,7 @@ function wbInsertImage() {
             wbObjects.push({ id: 'o_' + Date.now(), type: 'image', x: (wbCanvas.width - w) / 2 - wbOffset.x, y: (wbCanvas.height - h) / 2 - wbOffset.y, w, h, url });
             wbImageCache[url] = img;
             renderWhiteboard();
+            if (wbMode === 'live-teacher') scheduleBroadcastWB();
         };
         img.src = url;
     };
@@ -1695,6 +1749,7 @@ async function wbSavePdf() {
     pdf.save(`${wbBoardName || 'board'}.pdf`);
 }
 async function wbSendToGroup() {
+    if (wbMode === 'live-student') return;
     if (!activeGroupId) return alert("No active group.");
     if (restrictMessaging && currentUserRoleInActiveGroup !== 'teacher' && currentUserRoleInActiveGroup !== 'admin') return alert("Only teachers/admins can send.");
     const tmp = _wbExportCanvas();
@@ -1734,4 +1789,214 @@ function openWhiteboardFromB64(b64) {
         const json = decodeURIComponent(escape(atob(b64)));
         openWhiteboardFromMessage(JSON.parse(json));
     } catch (e) { alert("Cannot open whiteboard"); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   🖌️ LIVE WHITEBOARD FUNCTIONS
+   ═══════════════════════════════════════════════════════════ */
+
+function handleWBButton() {
+    if (currentUserRoleInActiveGroup === 'teacher' || currentUserRoleInActiveGroup === 'admin') {
+        toggleLiveWhiteboard();
+    } else {
+        viewLiveWhiteboardForStudent();
+    }
+}
+
+async function toggleLiveWhiteboard() {
+    if (!currentLiveCallId) return alert("Start the live class first.");
+    if (liveWBActive) {
+        if (confirm("Stop the live whiteboard for everyone?")) await stopLiveWhiteboard();
+    } else {
+        await startLiveWhiteboard();
+    }
+}
+
+async function startLiveWhiteboard() {
+    if (!wbCanvas) {
+        wbBoardName = 'Live Board';
+        wbObjects = []; wbUndoStack = []; wbRedoStack = [];
+        wbOffset = { x: 0, y: 0 };
+    }
+
+    const { data, error } = await supabaseClient
+        .from('live_wb_sessions')
+        .insert([{
+            live_call_id: currentLiveCallId,
+            group_id: activeGroupId,
+            teacher_id: currentUser.id,
+            board_name: wbBoardName || 'Live Board',
+            objects: wbObjects || []
+        }])
+        .select().single();
+
+    if (error) return alert("Failed to start whiteboard: " + error.message);
+
+    liveWBSessionId = data.id;
+    liveWBActive = true;
+    wbMode = 'live-teacher';
+
+    openLiveWhiteboardUI('teacher');
+
+    liveWBChannel = supabaseClient.channel(`live-wb:${currentLiveCallId}`, {
+        config: { broadcast: { self: false } }
+    });
+    liveWBChannel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') broadcastWBState();
+    });
+
+    const wbBtn = document.getElementById('meeting-wb-btn');
+    if (wbBtn) wbBtn.innerText = '⏹️ Stop Board';
+}
+
+function openLiveWhiteboardUI(role) {
+    const modal = document.getElementById('whiteboard-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    document.getElementById('wb-title-label').innerText = '🔴 Live: ' + (wbBoardName || 'Untitled Board');
+
+    const cvs = document.getElementById('wb-canvas');
+    const tb = document.querySelector('.wb-toolbar');
+    const info = document.getElementById('live-wb-info');
+
+    if (role === 'student') {
+        if (cvs) cvs.style.pointerEvents = 'none';
+        if (tb) tb.style.display = 'none';
+        if (info) info.style.display = 'flex';
+    } else {
+        if (cvs) cvs.style.pointerEvents = 'auto';
+        if (tb) tb.style.display = 'flex';
+        if (info) info.style.display = 'none';
+    }
+
+    setTimeout(() => {
+        initWbCanvas();
+        wbResize(true);
+        renderWhiteboard();
+    }, 100);
+}
+
+function scheduleBroadcastWB() {
+    if (!liveWBActive || wbMode !== 'live-teacher') return;
+    if (wbBroadcastTimer) clearTimeout(wbBroadcastTimer);
+    wbBroadcastTimer = setTimeout(() => broadcastWBState(), 250);
+}
+
+async function broadcastWBState() {
+    if (!liveWBChannel || !liveWBActive) return;
+    const payload = { objects: wbObjects, offset: wbOffset, name: wbBoardName };
+    try {
+        await liveWBChannel.send({ type: 'broadcast', event: 'wb-state', payload });
+        if (liveWBSessionId) {
+            await supabaseClient
+                .from('live_wb_sessions')
+                .update({ objects: wbObjects, updated_at: new Date().toISOString() })
+                .eq('id', liveWBSessionId);
+        }
+    } catch (e) { console.warn('WB broadcast error:', e); }
+}
+
+async function stopLiveWhiteboard() {
+    if (!liveWBActive) return;
+    if (liveWBChannel) {
+        try { await liveWBChannel.send({ type: 'broadcast', event: 'wb-stop', payload: {} }); } catch (e) {}
+    }
+    if (liveWBSessionId) {
+        await supabaseClient
+            .from('live_wb_sessions')
+            .update({ active: false, updated_at: new Date().toISOString() })
+            .eq('id', liveWBSessionId);
+    }
+    if (liveWBChannel) {
+        await supabaseClient.removeChannel(liveWBChannel);
+        liveWBChannel = null;
+    }
+    liveWBActive = false;
+    liveWBSessionId = null;
+    wbMode = 'normal';
+
+    const cvs = document.getElementById('wb-canvas');
+    if (cvs) cvs.style.pointerEvents = 'auto';
+    const tb = document.querySelector('.wb-toolbar');
+    if (tb) tb.style.display = 'flex';
+    const info = document.getElementById('live-wb-info');
+    if (info) info.style.display = 'none';
+
+    closeWhiteboard();
+
+    const wbBtn = document.getElementById('meeting-wb-btn');
+    if (wbBtn) wbBtn.innerText = '🖌️ Whiteboard';
+}
+
+async function subscribeToLiveWB(callId) {
+    const { data } = await supabaseClient
+        .from('live_wb_sessions')
+        .select('*')
+        .eq('live_call_id', callId)
+        .eq('active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (data) {
+        liveWBSessionId = data.id;
+        liveWBActive = true;
+        wbMode = 'live-student';
+        wbObjects = data.objects || [];
+        wbBoardName = data.board_name || 'Live Board';
+        wbOffset = { x: 0, y: 0 };
+        openLiveWhiteboardUI('student');
+        const wbBtn = document.getElementById('meeting-wb-btn');
+        if (wbBtn) { wbBtn.style.display = 'inline-flex'; wbBtn.innerText = '🖌️ View Board'; }
+    }
+
+    if (liveWBChannel) await supabaseClient.removeChannel(liveWBChannel);
+    liveWBChannel = supabaseClient.channel(`live-wb:${callId}`, {
+        config: { broadcast: { self: false } }
+    });
+
+    liveWBChannel
+        .on('broadcast', { event: 'wb-state' }, ({ payload }) => {
+            if (wbMode !== 'live-student') return;
+            wbObjects = payload.objects || [];
+            wbOffset = payload.offset || { x: 0, y: 0 };
+            wbBoardName = payload.name || 'Live Board';
+            wbSelected = null;
+            renderWhiteboard();
+            const wbBtn = document.getElementById('meeting-wb-btn');
+            if (wbBtn) { wbBtn.style.display = 'inline-flex'; wbBtn.innerText = '🖌️ View Board'; }
+        })
+        .on('broadcast', { event: 'wb-stop' }, () => {
+            if (wbMode === 'live-student') stopLiveWhiteboardForViewer();
+        })
+        .subscribe();
+}
+
+async function stopLiveWhiteboardForViewer() {
+    liveWBActive = false;
+    liveWBSessionId = null;
+    wbMode = 'normal';
+    if (liveWBChannel) {
+        await supabaseClient.removeChannel(liveWBChannel);
+        liveWBChannel = null;
+    }
+    const cvs = document.getElementById('wb-canvas');
+    if (cvs) cvs.style.pointerEvents = 'auto';
+    const tb = document.querySelector('.wb-toolbar');
+    if (tb) tb.style.display = 'flex';
+    const info = document.getElementById('live-wb-info');
+    if (info) info.style.display = 'none';
+    closeWhiteboard();
+    const wbBtn = document.getElementById('meeting-wb-btn');
+    if (wbBtn) wbBtn.style.display = 'none';
+}
+
+function hideLiveWBForStudent() {
+    document.getElementById('whiteboard-modal').classList.add('hidden');
+}
+
+function viewLiveWhiteboardForStudent() {
+    if (!liveWBActive || wbMode !== 'live-student') return;
+    document.getElementById('whiteboard-modal').classList.remove('hidden');
+    setTimeout(() => { initWbCanvas(); wbResize(true); renderWhiteboard(); }, 80);
 }
