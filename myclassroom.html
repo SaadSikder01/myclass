@@ -778,7 +778,7 @@
         /* ============================================================
            WHITEBOARD
            ============================================================ */
-        #whiteboard-modal { z-index: 500; }
+        #whiteboard-modal { z-index: 9995; }
         #whiteboard-window {
             background: var(--card-bg); border-radius: 12px;
             width: 96%; max-width: 1500px; height: 90vh;
@@ -1369,9 +1369,13 @@
          WHITEBOARD (FULL MODAL)
          ============================================================ -->
     <div id="whiteboard-modal" class="modal-overlay hidden">
-        <div id="whiteboard-window">
-            <div class="wb-toolbar">
-                <span class="wb-title" id="wb-title-label">Whiteboard</span>
+<div id="whiteboard-window">
+    <div id="live-wb-info" style="display:none;background:linear-gradient(135deg,#128C7E,#25D366);color:white;padding:10px 16px;font-size:14px;font-weight:600;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;">
+        <span>👀 You're viewing the teacher's live whiteboard</span>
+        <button onclick="hideLiveWBForStudent()" style="background:white;color:#128C7E;border:none;padding:6px 14px;border-radius:16px;font-weight:700;cursor:pointer;font-size:12px;margin:0;width:auto;">Hide</button>
+    </div>
+    <div class="wb-toolbar">
+        <span class="wb-title" id="wb-title-label">Whiteboard</span>
                 <button id="wb-tool-select" onclick="wbSetTool('select')" title="Select / Move (V)">🖱️</button>
                 <button id="wb-tool-pen" class="active" onclick="wbSetTool('pen')" title="Pen (P)">✏️</button>
                 <button id="wb-tool-highlighter" onclick="wbSetTool('highlighter')" title="Highlighter (M)">🖍️</button>
@@ -1427,8 +1431,10 @@
                 <span id="meeting-room-status"></span>
             </div>
             <div style="display:flex;gap:8px;flex-shrink:0;">
-                <button class="meeting-action-btn" onclick="toggleMeetingFullscreen()" id="meeting-fs-btn">⛶ Full</button>
-                <button class="meeting-end-btn" onclick="endLiveClass()">End Class</button>
+<button class="meeting-action-btn" onclick="toggleMeetingFullscreen()" id="meeting-fs-btn">⛶ Full</button>
+<button class="meeting-action-btn" onclick="handleWBButton()" id="meeting-wb-btn" style="display:none;">🖌️ Whiteboard</button>
+<button class="meeting-end-btn" onclick="endLiveClass()" id="meeting-end-btn" style="display:none;">End Class</button>
+<button class="meeting-action-btn" onclick="leaveMeetingRoom()" id="meeting-leave-btn" style="display:none;">Leave</button>
             </div>
         </div>
         <div id="meeting-room-frame-wrap">
