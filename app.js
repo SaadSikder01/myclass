@@ -978,7 +978,8 @@ const teacherToken = await createGaleneToken(['op', 'present'], teacherName, 2 *
     openMeetingRoom(teacherToken, teacherName);
 
     // Student: শুধু view (কোনো present নেই) — chat করতে চাইলে 'message' যোগ করুন
-const studentToken = await createGaleneToken(['message'], null, 2 * 60 * 60 * 1000);
+// Student: শুধু view (no present, no message)
+const studentToken = await createGaleneToken([], null, 2 * 60 * 60 * 1000);
     if (studentToken) {
         currentGaleneStudentToken = studentToken;
         sessionStorage.setItem('galene_student_token', studentToken);
@@ -1023,28 +1024,17 @@ function closeIncomingCallPopup() {
 function openMeetingRoom(token, username) {
     const panel = document.getElementById('meeting-room-panel');
     const iframe = document.getElementById('meeting-room-iframe');
-    const status = document.getElementById('meeting-room-status');
-    if (!panel || !iframe) { console.warn('Meeting room panel missing'); return; }
+    if (!panel || !iframe) return;
 
-    iframe.src = `${GALENE_BASE_URL}/group/${GALENE_GROUP}/?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`;
-    if (status) status.innerText = `(${username})`;
+    // ✅ NEW: Load custom meeting from VPS (same origin as protocol.js)
+    iframe.src = `https://2a14-6781-000a-0000-0007.taild42689.ts.net/meeting.html?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`;
+    iframe.style.display = 'block';
     panel.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 
-    const wbBtn = document.getElementById('meeting-wb-btn');
-    const endBtn = document.getElementById('meeting-end-btn');
-    const leaveBtn = document.getElementById('meeting-leave-btn');
-    const isTeacher = currentUserRoleInActiveGroup === 'teacher' || currentUserRoleInActiveGroup === 'admin';
-
-    if (isTeacher) {
-        if (wbBtn) { wbBtn.style.display = 'inline-flex'; wbBtn.innerText = '🖌️ Whiteboard'; }
-        if (endBtn) endBtn.style.display = 'inline-flex';
-        if (leaveBtn) leaveBtn.style.display = 'none';
-    } else {
-        if (wbBtn) wbBtn.style.display = liveWBActive ? 'inline-flex' : 'none';
-        if (endBtn) endBtn.style.display = 'none';
-        if (leaveBtn) leaveBtn.style.display = 'inline-flex';
-    }
+    // Hide old green header (we don't need it)
+    const header = document.getElementById('meeting-room-header');
+    if (header) header.style.display = 'none';
 }
 
 /* ✅ UPDATED: closeMeetingRoom */
