@@ -964,7 +964,7 @@ async function startClassCall() {
 
     const teacherName = currentUser.user_metadata.name || currentUser.email || 'Teacher';
     // ✅ op + present + message সব একসাথে দিতে হবে
-const teacherToken = await createGaleneToken(['op', 'present', 'message'], teacherName, 2 * 60 * 60 * 1000);
+const teacherToken = await createGaleneToken(['op', 'present'], teacherName, 2 * 60 * 60 * 1000);
     if (!teacherToken) {
         await supabaseClient.from('live_calls').update({ active: false, ended_at: new Date().toISOString() }).eq('id', callData.id);
         return alert("❌ Failed to create teacher token.\n\nPossible causes:\n1. Supabase Edge Function not deployed\n2. Edge Function JWT verification blocking\n3. Galene server unreachable\n\nCheck browser console for details.");
