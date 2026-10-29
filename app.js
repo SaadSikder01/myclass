@@ -963,7 +963,8 @@ async function startClassCall() {
     if (callErr) return alert("Failed to start class: " + callErr.message);
 
     const teacherName = currentUser.user_metadata.name || currentUser.email || 'Teacher';
-    const teacherToken = await createGaleneToken(['op'], teacherName, 2 * 60 * 60 * 1000);
+    // ✅ op + present + message সব একসাথে দিতে হবে
+const teacherToken = await createGaleneToken(['op', 'present', 'message'], teacherName, 2 * 60 * 60 * 1000);
     if (!teacherToken) {
         await supabaseClient.from('live_calls').update({ active: false, ended_at: new Date().toISOString() }).eq('id', callData.id);
         return alert("❌ Failed to create teacher token.\n\nPossible causes:\n1. Supabase Edge Function not deployed\n2. Edge Function JWT verification blocking\n3. Galene server unreachable\n\nCheck browser console for details.");
@@ -976,7 +977,8 @@ async function startClassCall() {
 
     openMeetingRoom(teacherToken, teacherName);
 
-    const studentToken = await createGaleneToken([], null, 2 * 60 * 60 * 1000);
+    // Student: শুধু view (কোনো present নেই) — chat করতে চাইলে 'message' যোগ করুন
+const studentToken = await createGaleneToken(['message'], null, 2 * 60 * 60 * 1000);
     if (studentToken) {
         currentGaleneStudentToken = studentToken;
         sessionStorage.setItem('galene_student_token', studentToken);
