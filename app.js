@@ -1026,8 +1026,8 @@ function openMeetingRoom(token, username) {
     const iframe = document.getElementById('meeting-room-iframe');
     if (!panel || !iframe) return;
 
-    // ✅ NEW: Load custom meeting from VPS (same origin as protocol.js)
-    iframe.src = `https://2a14-6781-000a-0000-0007.taild42689.ts.net/meeting.html?token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`;
+    // ✅ Galene-এর default group page, token দিয়ে auth
+    iframe.src = `https://2a14-6781-000a-0000-0007.taild42689.ts.net/group/classroom/?token=${encodeURIComponent(token)}`;
     iframe.style.display = 'block';
     panel.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
